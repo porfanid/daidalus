@@ -1,7 +1,7 @@
 # Simple Makefile to build DAIDALUS library and example applications
 NAME=DAIDALUS
 MAJOR=2
-MINOR=.0.3
+MINOR=.0.4
 VERSION=$(NAME)$(MAJOR)
 RELEASE=$(NAME)v$(MAJOR)$(MINOR)
 
@@ -11,7 +11,7 @@ OBJS   = $(SRC:.cpp=.o)
 INCLUDEFLAGS = -Iinclude 
 CXXFLAGS = $(INCLUDEFLAGS) -Wall -O 
 
-all: clean lib examples
+all: lib examples
 
 lib: $(OBJS)
 	@echo "** Building lib/$(RELEASE).a library"
@@ -50,6 +50,9 @@ configs: examples
 
 clean:
 	rm -f DaidalusExample DaidalusAlerting DaidalusBatch src/*.o examples/*.o lib/*.a
+
+check:
+	cppcheck --enable=all --cppcheck-build-dir=.cppcheck-config --suppressions-list=.cppcheck-config/cppcheck-suppressions.txt $(INCLUDEFLAGS) -q $(SRC) examples/
 
 mold: examples
 	./DaidalusExample --config no_sum --verbose > ../Regression/C++/DaidalusExample-no_sum.out

@@ -94,7 +94,7 @@ vector<string> split_string_empty(const string& str,const string& delimiter) {
 vector<string> split_regex(const std::string& s, const std::string& rgx_str) {
 	std::vector<std::string> elems;
 	size_t index = 0;
-	size_t last = 0;
+	//size_t last = 0;
 	std::string xs = s;
 
 	//fpln("Hello "+s+" X"+rgx_str+"X");
@@ -104,7 +104,7 @@ vector<string> split_regex(const std::string& s, const std::string& rgx_str) {
 		while (std::regex_search(xs, sm, rgx)) {
 			//fpln("E" + xs.substr(0, sm.position()) + "E");
 			elems.push_back(xs.substr(0, sm.position()));
-			last = sm.position()+sm.length();
+			//last = sm.position()+sm.length();
 			xs = sm.suffix().str();
 		}
 	}
@@ -150,7 +150,7 @@ bool matches(const string& s, const string& rgx_str) {
 		//fpln("regex str="+rgx_str);
 		//fpln("split_regex s.size()="+Fm2(length));
 		while (count < length) {
-			string m2(cstr+count);
+			//string m2(cstr+count);
 			//fpln("str = "+m2);
 			//fpln("count = "+Fm2(count));
 			reti = regexec(&rgx, cstr+count, 1, matchptr, 0);
@@ -179,7 +179,7 @@ bool matches(const string& s, const string& rgx_str) {
 				count = s.size();
 			} else {
 				regerror(reti, &rgx, between, sizeof(between));
-				string m1(between);
+				//string m1(between);
 				//fdln("Regex match failed: "+m1);
 			}
 
@@ -210,7 +210,7 @@ bool matches(const string& s, const string& rgx_str) {
 	string substring(const string& s, int begin, int end){
 		int len = static_cast<int>(s.length());
 		end = (end < len) ? end : s.length();
-		if (begin < end || begin < 0) {
+		if (begin < end && begin >= 0) {
 			return s.substr(begin,end-begin);
 		} else {
 			return "";

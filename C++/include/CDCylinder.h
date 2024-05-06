@@ -61,24 +61,24 @@ namespace larcfm {
 class CDCylinder : public Detection3D {
 
 private:
-  std::string id;
-  std::map<std::string,std::string> units_;
+
   double D_;
   double H_;
+  std::map<std::string,std::string> units_;
+  std::string id;
 
 public:
 
   /**
    * Instantiates a new CD3D object.
    */
-  CDCylinder(const std::string& s="");
+  explicit CDCylinder(const std::string& s="");
 
   /**
    * This specifies the internal table is a copy of the provided table
    * @param tab
    */
   CDCylinder(const CDCylinder& cdc);
-
   CDCylinder(double d, double h);
   CDCylinder(double d, const std::string& dunit, double h, const std::string& hunit);
 
@@ -168,18 +168,18 @@ public:
    */
   LossData detection(const Vect3& s, const Vect3& vo, const Vect3& vi, const double D, const double H) const;
 
-  virtual ~CDCylinder() {};
+  virtual ~CDCylinder() {}
 
-  static ConflictData conflict_detection(const Vect3& so, const Velocity& vo, const Vect3& si, const Velocity& vi, double D, double H, double B, double T);
-  static double time_of_closest_approach(const Vect3& so, const Velocity& vo, const Vect3& si, const Velocity& vi, double D, double H, double B, double T);
+  static ConflictData conflict_detection(const Vect3& so, const Vect3& vo, const Vect3& si, const Vect3& vi, double D, double H, double B, double T);
+  static double time_of_closest_approach(const Vect3& so, const Vect3& vo, const Vect3& si, const Vect3& vi, double D, double H, double B, double T);
 
 
   // The non-static methods violation and conflict are
   // inherited from Detection3D. This enable a uniform
   // treatment of border cases in the generic bands algorithms
 
-  virtual ConflictData conflictDetection(const Vect3& so, const Velocity& vo, const Vect3& si, const Velocity& vi, double B, double T) const;
-  double timeOfClosestApproach(const Vect3& so, const Velocity& vo, const Vect3& si, const Velocity& vi, double B, double T) const;
+  virtual ConflictData conflictDetection(const Vect3& so, const Vect3& vo, const Vect3& si, const Vect3& vi, double B, double T) const;
+  double timeOfClosestApproach(const Vect3& so, const Vect3& vo, const Vect3& si, const Vect3& vi, double B, double T) const;
 
   /** This returns a pointer to a new instance of this type of Detector3D.  You are responsible for destroying this instance when it is no longer needed. */
   virtual CDCylinder* copy() const;
@@ -195,8 +195,8 @@ public:
   virtual std::string getIdentifier() const;
   virtual void setIdentifier(const std::string& s);
 
-  virtual bool equals(Detection3D* d) const;
-  virtual bool contains(const Detection3D* cd) const;
+  virtual bool equals(const Detection3D& dd) const;
+  virtual bool contains(const Detection3D& cd) const;
 
   /* Return a list of point representing a counter-clockwise circular arc centered at pc,
    * whose first point is pc+v(0), and the last one is pc+v(alpha), where alpha is

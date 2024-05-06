@@ -10,7 +10,6 @@ import java.util.List;
 
 import gov.nasa.larcfm.Util.Util;
 import gov.nasa.larcfm.Util.Vect3;
-import gov.nasa.larcfm.Util.Velocity;
 
 /* 
  * Most urgent strategy based on distance at closest point of approach. When this distance is less than the minimum 
@@ -33,11 +32,11 @@ public class DCPAUrgencyStrategy implements UrgencyStrategy {
 		double D = ACCoRDConfig.NMAC_D;
 		double H = ACCoRDConfig.NMAC_H;
 		Vect3 so = ownship.get_s();
-		Velocity vo = ownship.get_v();
+		Vect3 vo = ownship.get_v();
 		for (int idx = 0; idx < traffic.size(); ++idx) {
 			TrafficState intruder = traffic.get(idx);
 			Vect3 si = intruder.get_s();
-			Velocity vi = intruder.get_v();
+			Vect3 vi = intruder.get_v();
 			Vect3 s = so.Sub(si);
 			Vect3 v = vo.Sub(vi);
 			double tcpa = CD3D.tccpa(s,vo,vi,D,H);

@@ -16,23 +16,20 @@
 #include "WCV_tvar.h"
 #include "TCAS3D.h"
 #include "string_util.h"
+#include "NoDetector.h"
 
 #include <vector>
 #include <map>
 
 namespace larcfm {
 
-Alerter::Alerter() {
-  id_ = "default";
-}
-
 bool Alerter::isValid() const {
   return !levels_.empty();
 }
 
-Alerter::Alerter(const std::string& id) {
-  id_ = equals(id, "") ? "default" : id;
-}
+Alerter::Alerter() : id_("default") {}
+
+Alerter::Alerter(const std::string& id) : id_(id) {}
 
 const Alerter& Alerter::INVALID() {
   static Alerter a;
@@ -55,7 +52,7 @@ const std::string& Alerter::getId() const {
  * bands region = NONE
  */
 const AlertThresholds& Alerter::DO_365_Phase_I_HAZ_preventive() {
-  static AlertThresholds preventive(&WCV_TAUMOD::DO_365_Phase_I_preventive(),55,75,BandsRegion::NONE);
+  static const AlertThresholds preventive(WCV_TAUMOD::DO_365_Phase_I_preventive(),55,75,BandsRegion::NONE);
   return preventive;
 }
 
@@ -65,7 +62,7 @@ const AlertThresholds& Alerter::DO_365_Phase_I_HAZ_preventive() {
  * bands region = MID
  */
 const AlertThresholds& Alerter::DO_365_Phase_I_HAZ_corrective() {
-  static AlertThresholds corrective(&WCV_TAUMOD::DO_365_DWC_Phase_I(),55,75,BandsRegion::MID);
+  static const AlertThresholds corrective(WCV_TAUMOD::DO_365_DWC_Phase_I(),55,75,BandsRegion::MID);
   return corrective;
 }
 
@@ -75,7 +72,7 @@ const AlertThresholds& Alerter::DO_365_Phase_I_HAZ_corrective() {
  * bands region = NEAR
  */
 const AlertThresholds& Alerter::DO_365_Phase_I_HAZ_warning() {
-  static AlertThresholds corrective(&WCV_TAUMOD::DO_365_DWC_Phase_I(),25,55,BandsRegion::NEAR);
+  static AlertThresholds corrective(WCV_TAUMOD::DO_365_DWC_Phase_I(),25,55,BandsRegion::NEAR);
   return corrective;
 }
 
@@ -101,7 +98,7 @@ const Alerter& Alerter::DWC_Phase_I() {
  * bands region = NONE
  */
 const AlertThresholds& Alerter::DO_365_Phase_II_HAZ_preventive() {
-  static AlertThresholds preventive(&WCV_TAUMOD::DO_365_DWC_Phase_II(),45,75,BandsRegion::NONE);
+  static AlertThresholds preventive(WCV_TAUMOD::DO_365_DWC_Phase_II(),45,75,BandsRegion::NONE);
   return preventive;
 }
 
@@ -111,7 +108,7 @@ const AlertThresholds& Alerter::DO_365_Phase_II_HAZ_preventive() {
  * bands region = MID
  */
 const AlertThresholds& Alerter::DO_365_Phase_II_HAZ_corrective() {
-  static AlertThresholds preventive(&WCV_TAUMOD::DO_365_DWC_Phase_II(),45,75,BandsRegion::MID);
+  static AlertThresholds preventive(WCV_TAUMOD::DO_365_DWC_Phase_II(),45,75,BandsRegion::MID);
   return preventive;
 }
 
@@ -121,7 +118,7 @@ const AlertThresholds& Alerter::DO_365_Phase_II_HAZ_corrective() {
  * bands region = NEAR
  */
 const AlertThresholds& Alerter::DO_365_Phase_II_HAZ_warning() {
-  static AlertThresholds warning(&WCV_TAUMOD::DO_365_DWC_Phase_II(),45,75,BandsRegion::NEAR);
+  static AlertThresholds warning(WCV_TAUMOD::DO_365_DWC_Phase_II(),45,75,BandsRegion::NEAR);
   return warning;
 }
 
@@ -147,7 +144,7 @@ const Alerter& Alerter::DWC_Phase_II() {
  * bands region = NONE
  */
 const AlertThresholds& Alerter::DO_365_Non_Coop_HAZ_preventive() {
-  static AlertThresholds preventive(&WCV_TAUMOD::DO_365_DWC_Non_Coop(),55,110,BandsRegion::NONE);
+  static AlertThresholds preventive(WCV_TAUMOD::DO_365_DWC_Non_Coop(),55,110,BandsRegion::NONE);
   return preventive;
 }
 
@@ -157,7 +154,7 @@ const AlertThresholds& Alerter::DO_365_Non_Coop_HAZ_preventive() {
  * bands region = MID
  */
 const AlertThresholds& Alerter::DO_365_Non_Coop_HAZ_corrective() {
-  static AlertThresholds preventive(&WCV_TAUMOD::DO_365_DWC_Non_Coop(),55,110,BandsRegion::MID);
+  static AlertThresholds preventive(WCV_TAUMOD::DO_365_DWC_Non_Coop(),55,110,BandsRegion::MID);
   return preventive;
 }
 
@@ -167,7 +164,7 @@ const AlertThresholds& Alerter::DO_365_Non_Coop_HAZ_corrective() {
  * bands region = NEAR
  */
 const AlertThresholds& Alerter::DO_365_Non_Coop_HAZ_warning() {
-  static AlertThresholds warning(&WCV_TAUMOD::DO_365_DWC_Non_Coop(),25,90,BandsRegion::NEAR);
+  static AlertThresholds warning(WCV_TAUMOD::DO_365_DWC_Non_Coop(),25,90,BandsRegion::NEAR);
   return warning;
 }
 
@@ -193,7 +190,7 @@ const Alerter& Alerter::DWC_Non_Coop() {
  * bands region = NONE, with SUM
  */
 const AlertThresholds& Alerter::DO_365_Non_Coop_HAZ_preventive_SUM() {
-  static AlertThresholds preventive(&WCV_TAUMOD_SUM::DO_365_DWC_Non_Coop(),50,110,BandsRegion::NONE);
+  static AlertThresholds preventive(WCV_TAUMOD_SUM::DO_365_DWC_Non_Coop(),50,110,BandsRegion::NONE);
   return preventive;
 }
 
@@ -203,7 +200,7 @@ const AlertThresholds& Alerter::DO_365_Non_Coop_HAZ_preventive_SUM() {
  * bands region = MID, with SUM
  */
 const AlertThresholds& Alerter::DO_365_Non_Coop_HAZ_corrective_SUM() {
-  static AlertThresholds preventive(&WCV_TAUMOD_SUM::DO_365_DWC_Non_Coop(),50,110,BandsRegion::MID);
+  static AlertThresholds preventive(WCV_TAUMOD_SUM::DO_365_DWC_Non_Coop(),50,110,BandsRegion::MID);
   return preventive;
 }
 
@@ -213,7 +210,7 @@ const AlertThresholds& Alerter::DO_365_Non_Coop_HAZ_corrective_SUM() {
  * bands region = NEAR, with SUM
  */
 const AlertThresholds& Alerter::DO_365_Non_Coop_HAZ_warning_SUM() {
-  static AlertThresholds warning(&WCV_TAUMOD_SUM::DO_365_DWC_Non_Coop(),20,90,BandsRegion::NEAR);
+  static AlertThresholds warning(WCV_TAUMOD_SUM::DO_365_DWC_Non_Coop(),20,90,BandsRegion::NEAR);
   return warning;
 }
 
@@ -239,7 +236,7 @@ const Alerter& Alerter::DWC_Non_Coop_SUM() {
  * bands region = NONE, with SUM
  */
 const AlertThresholds& Alerter::DO_365_Phase_I_HAZ_preventive_SUM() {
-  static AlertThresholds preventive(&WCV_TAUMOD_SUM::DO_365_Phase_I_preventive(),50,75,BandsRegion::NONE);
+  static AlertThresholds preventive(WCV_TAUMOD_SUM::DO_365_Phase_I_preventive(),50,75,BandsRegion::NONE);
   return preventive;
 }
 
@@ -249,7 +246,7 @@ const AlertThresholds& Alerter::DO_365_Phase_I_HAZ_preventive_SUM() {
  * bands region = MID, with SUM
  */
 const AlertThresholds& Alerter::DO_365_Phase_I_HAZ_corrective_SUM() {
-  static AlertThresholds corrective(&WCV_TAUMOD_SUM::DO_365_DWC_Phase_I(),50,75,BandsRegion::MID);
+  static AlertThresholds corrective(WCV_TAUMOD_SUM::DO_365_DWC_Phase_I(),50,75,BandsRegion::MID);
   return corrective;
 }
 
@@ -259,7 +256,7 @@ const AlertThresholds& Alerter::DO_365_Phase_I_HAZ_corrective_SUM() {
  * bands region = NEAR, with SUM
  */
 const AlertThresholds& Alerter::DO_365_Phase_I_HAZ_warning_SUM() {
-  static AlertThresholds warning(&WCV_TAUMOD_SUM::DO_365_DWC_Phase_I(),25,55,BandsRegion::NEAR);
+  static AlertThresholds warning(WCV_TAUMOD_SUM::DO_365_DWC_Phase_I(),25,55,BandsRegion::NEAR);
   return warning;
 }
 
@@ -284,7 +281,7 @@ const Alerter& Alerter::DWC_Phase_I_SUM() {
  * bands region = NONE, with SUM
  */
 const AlertThresholds& Alerter::DO_365_Phase_II_HAZ_preventive_SUM() {
-  static AlertThresholds preventive(&WCV_TAUMOD_SUM::DO_365_DWC_Phase_II(),40,75,BandsRegion::NONE);
+  static AlertThresholds preventive(WCV_TAUMOD_SUM::DO_365_DWC_Phase_II(),40,75,BandsRegion::NONE);
   return preventive;
 }
 
@@ -294,7 +291,7 @@ const AlertThresholds& Alerter::DO_365_Phase_II_HAZ_preventive_SUM() {
  * bands region = MID, with SUM
  */
 const AlertThresholds& Alerter::DO_365_Phase_II_HAZ_corrective_SUM() {
-  static AlertThresholds corrective(&WCV_TAUMOD_SUM::DO_365_DWC_Phase_II(),40,75,BandsRegion::MID);
+  static AlertThresholds corrective(WCV_TAUMOD_SUM::DO_365_DWC_Phase_II(),40,75,BandsRegion::MID);
   return corrective;
 }
 
@@ -304,7 +301,7 @@ const AlertThresholds& Alerter::DO_365_Phase_II_HAZ_corrective_SUM() {
  * bands region = MID, with SUM
  */
 const AlertThresholds& Alerter::DO_365_Phase_II_HAZ_warning_SUM() {
-  static AlertThresholds warning(&WCV_TAUMOD_SUM::DO_365_DWC_Phase_II(),40,75,BandsRegion::NEAR);
+  static AlertThresholds warning(WCV_TAUMOD_SUM::DO_365_DWC_Phase_II(),40,75,BandsRegion::NEAR);
   return warning;
 }
 
@@ -330,7 +327,7 @@ const Alerter& Alerter::DWC_Phase_II_SUM() {
  * bands region = NONE
  */
 const AlertThresholds& Alerter::Buffered_Phase_I_HAZ_preventive() {
-  static AlertThresholds preventive(&WCV_TAUMOD::Buffered_Phase_I_preventive(),60,75,BandsRegion::NONE);
+  static AlertThresholds preventive(WCV_TAUMOD::Buffered_Phase_I_preventive(),60,75,BandsRegion::NONE);
   return preventive;
 }
 
@@ -340,7 +337,7 @@ const AlertThresholds& Alerter::Buffered_Phase_I_HAZ_preventive() {
  * bands region = MID
  */
 const AlertThresholds& Alerter::Buffered_Phase_I_HAZ_corrective() {
-  static AlertThresholds corrective(&WCV_TAUMOD::Buffered_DWC_Phase_I(),60,75,BandsRegion::MID);
+  static AlertThresholds corrective(WCV_TAUMOD::Buffered_DWC_Phase_I(),60,75,BandsRegion::MID);
   return corrective;
 }
 
@@ -350,7 +347,7 @@ const AlertThresholds& Alerter::Buffered_Phase_I_HAZ_corrective() {
  * bands region = NEAR
  */
 const AlertThresholds& Alerter::Buffered_Phase_I_HAZ_warning() {
-  static AlertThresholds corrective(&WCV_TAUMOD::Buffered_DWC_Phase_I(),30,55,BandsRegion::NEAR);
+  static AlertThresholds corrective(WCV_TAUMOD::Buffered_DWC_Phase_I(),30,55,BandsRegion::NEAR);
   return corrective;
 }
 
@@ -368,8 +365,8 @@ const Alerter& Alerter::Buffered_DWC_Phase_I() {
  * @return alerting thresholds for single bands given by detector,
  * alerting time, and lookahead time. The single bands region is NEAR
  */
-Alerter Alerter::SingleBands(const Detection3D* detector, double alerting_time, double lookahead_time,
-    const std::string name) {
+Alerter Alerter::SingleBands(const Detection3D& detector, double alerting_time, double lookahead_time,
+    const std::string& name) {
   Alerter alerter(name);
   alerter.addLevel(AlertThresholds(detector,alerting_time,lookahead_time,BandsRegion::NEAR));
   return alerter;
@@ -381,7 +378,7 @@ Alerter Alerter::SingleBands(const Detection3D* detector, double alerting_time, 
  * 180s.
  */
 const Alerter& Alerter::CD3D_SingleBands() {
-  static Alerter alerter = SingleBands(&CDCylinder::CD3DCylinder(),180,180,"CD3D");
+  static Alerter alerter = SingleBands(CDCylinder::CD3DCylinder(),180,180,"CD3D");
   return alerter;
 }
 
@@ -391,7 +388,7 @@ const Alerter& Alerter::CD3D_SingleBands() {
  * alerting time = 55s, early alerting time = 75s.
  */
 const Alerter& Alerter::WCV_TAUMOD_SingleBands() {
-  static Alerter alerter = SingleBands(&WCV_TAUMOD::DO_365_DWC_Phase_I(),55,75,"WCV_TAUMOD");
+  static Alerter alerter = SingleBands(WCV_TAUMOD::DO_365_DWC_Phase_I(),55,75,"WCV_TAUMOD");
   return alerter;
 }
 
@@ -399,7 +396,7 @@ const Alerter& Alerter::WCV_TAUMOD_SingleBands() {
  * TCASII-TA thresholds
  */
 const AlertThresholds& Alerter::TCASII_TA_THR() {
-  static AlertThresholds ta(&TCAS3D::TCASII_TA(),0,0,BandsRegion::NONE);
+  static AlertThresholds ta(TCAS3D::TCASII_TA(),0,0,BandsRegion::NONE);
   return ta;
 }
 
@@ -407,7 +404,7 @@ const AlertThresholds& Alerter::TCASII_TA_THR() {
  * TCASII-RA thresholds
  */
 const AlertThresholds& Alerter::TCASII_RA_THR() {
-  static AlertThresholds ra(&TCAS3D::TCASII_RA(),0,0,BandsRegion::NEAR);
+  static AlertThresholds ra(TCAS3D::TCASII_RA(),0,0,BandsRegion::NEAR);
   return ra;
 }
 
@@ -440,26 +437,25 @@ int Alerter::alertLevelForRegion(BandsRegion::Region region) const {
   return -1;
 }
 
-Detection3D* Alerter::getDetectorPtr(int alert_level) const {
+const Detection3D& Alerter::getDetector(int alert_level) const {
   if (1 <= alert_level && alert_level <= static_cast<int>(levels_.size())) {
-    return levels_[alert_level-1].getCoreDetectionPtr();
+    return levels_[alert_level-1].getCoreDetection();
   } else {
-    return NULL;
+    return NoDetector::A_NoDetector();
   }
 }
 
 void Alerter::setLevel(int level, const AlertThresholds& thresholds) {
   if (1 <= level && level <= static_cast<int>(levels_.size())) {
-    levels_[level-1] = AlertThresholds(thresholds);
+    levels_[level-1] = thresholds;
+    ((Detection3D&)(levels_[level-1].getCoreDetection())).setIdentifier("det_"+Fmi(level));
   }
 }
 
-
 int Alerter::addLevel(const AlertThresholds& thresholds) {
-  levels_.push_back(AlertThresholds(thresholds));
+  levels_.push_back(thresholds);
   int sz = levels_.size();
-  Detection3D* cd = levels_[sz-1].getCoreDetectionPtr();
-  cd->setIdentifier("det_"+Fmi(sz));
+  ((Detection3D&)(levels_[sz-1].getCoreDetection())).setIdentifier("det_"+Fmi(sz));
   return sz;
 }
 
@@ -488,10 +484,10 @@ void Alerter::updateParameterData(ParameterData& p) const {
     //make sure each instance has a unique, ordered name
     std::string prefix = "alert_"+Fmi(i+1)+"_";
     pdmain.copy(pd.copyWithPrefix(prefix),true);
-    Detection3D* det = levels_[i].getCoreDetectionPtr();
-    pdmain.copy(det->getParameters().copyWithPrefix(det->getIdentifier()+"_"),true);
-    pdmain.set("load_core_detection_"+det->getIdentifier()+" = "+det->getCanonicalClassName());
-    pdmain.remove(det->getIdentifier()+"_id");
+    const Detection3D& det = levels_[i].getCoreDetection();
+    pdmain.copy(det.getParameters().copyWithPrefix(det.getIdentifier()+"_"),true);
+    pdmain.set("load_core_detection_"+det.getIdentifier()+" = "+det.getCanonicalClassName());
+    pdmain.remove(det.getIdentifier()+"_id");
   }
   p.copy(pdmain,true);
 }
@@ -515,8 +511,7 @@ void Alerter::setParameters(const ParameterData& p) {
   }
   while (pdsub.size() > 0) {
     // build the alertlevel
-    AlertThresholds al;
-    al.setCoreDetectionPtr(dmap[pdsub.getString("detector")]);
+    AlertThresholds al(dmap[pdsub.getString("detector")]);
     al.setParameters(pdsub);
     // modify or add the alertlevel (this cannot remove levels)
     if (counter <= static_cast<int>(levels_.size())) {

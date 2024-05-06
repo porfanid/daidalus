@@ -85,7 +85,7 @@ import java.util.Optional;
  *
  */
 
-public class Daidalus implements GenericStateBands {
+public class Daidalus {
 
 	private DaidalusCore      core_;
 	private DaidalusDirBands  hdir_band_; 
@@ -323,28 +323,40 @@ public class Daidalus implements GenericStateBands {
 
 	/**
 	 * Set ownship state and current time. Clear all traffic. 
-	 * @param id Ownship's identifier
-	 * @param pos Ownship's position
-	 * @param vel Ownship's ground velocity
-	 * @param time Time stamp of ownship's state
+	 * @param id     Ownship's identifier
+	 * @param pos    Ownship's position
+	 * @param vel    Ownship's ground velocity
+	 * @param airvel Ownship's air velocity
+	 * @param time   Time stamp of ownship's state
 	 */
-	public void setOwnshipState(String id, Position pos, Velocity vel, double time) {
+	public void setOwnshipState(String id, Position pos, Velocity vel, Velocity airvel, double time) {
 		if (!hasOwnship() || !core_.ownship.getId().equals(id) || 
 				time < getCurrentTime() ||
 				time-getCurrentTime() > getHysteresisTime()){
 			// Full reset (including hysteresis) if adding a different ownship or time is
-			// in the past. Note that wind is not clear.
+			// in the past. Note that wind is not cleared.
 			clearHysteresis();
-			core_.set_ownship_state(id,pos,vel,time);
+			core_.set_ownship_state(id,pos,vel,airvel,time);
 		} else {
 			// Otherwise, reset cache values but keeps hysteresis.
-			core_.set_ownship_state(id,pos,vel,time);
+			core_.set_ownship_state(id,pos,vel,airvel,time);
 			stale_bands();
 		}
 	}
 
 	/**
-	 * Set ownship state at time 0.0. Clear all traffic. 
+	 * Set ownship state and current time. Clear all traffic and assumme previous wind.
+	 * @param id     Ownship's identifier
+	 * @param pos    Ownship's position
+	 * @param vel    Ownship's ground velocity
+	 * @param time   Time stamp of ownship's state
+	 */
+	public void setOwnshipState(String id, Position pos, Velocity vel, double time) {
+		setOwnshipState(id,pos,vel,vel.Sub(core_.wind_vector),time);
+	}
+
+	/**
+	 * Set ownship state at time 0.0. Clear all traffic and assume previous wind.
 	 * @param id Ownship's identifier
 	 * @param pos Ownship's position
 	 * @param vel Ownship's ground velocity
@@ -354,7 +366,7 @@ public class Daidalus implements GenericStateBands {
 	}
 
 	/**
-	 * Add traffic state at given time. 
+	 * Add traffic state at given time. Assume previous wind.
 	 * If time is different from current time, traffic state is projected, past or future, 
 	 * into current time. If it's the first aircraft, this aircraft is 
 	 * set as the ownship. If a traffic state with the same id already exists,
@@ -368,7 +380,7 @@ public class Daidalus implements GenericStateBands {
 	 */
 	public int addTrafficState(String id, Position pos, Velocity vel, double time) {
 		if (lastTrafficIndex() < 0) {
-			setOwnshipState(id,pos,vel,time);
+			setOwnshipState(id,pos,vel,vel,time);
 			return 0;
 		} else {
 			int idx = core_.set_traffic_state(id,pos,vel,time);
@@ -505,34 +517,70 @@ public class Daidalus implements GenericStateBands {
 	/* Wind Setting */
 
 	/**
+	 * Get ownship's heading in internal units [0-2PI]
+	 */
+	public double getOwnshipHeading() {
+		return core_.ownship.horizontalDirection();
+	}
+
+	/**
+	 * Get ownship's heading in given units [0-2PI]
+	 */
+	public double getOwnshipHeading(String units) {
+		return core_.ownship.horizontalDirection(units);
+	}
+
+	/**
+	 * Get ownship's air speed in internal units [m/s]
+	 */
+	public double getOwnshipAirSpeed() {
+		return core_.ownship.horizontalSpeed();
+	}
+
+	/**
+	 * Get ownship's air apeed in given units 
+	 */
+	public double getOwnshipAirSpeed(String units) {
+		return core_.ownship.horizontalSpeed(units);
+	}
+	
+	/**
+	 * Set ownship's air velocity. This method resets the wind setting and the air velocity of all traffic aircraft.
+	 */
+	public void setOwnshipAirVelocity(double heading, double airspeed) {
+		core_.set_ownship_airvelocity(heading,airspeed);
+		stale_bands();
+	}
+
+	/**
 	 * Get wind velocity specified in the TO direction
 	 */
 	public Velocity getWindVelocityTo() {
-		return core_.wind_vector;
+		return Velocity.make(core_.wind_vector);
 	}
 
 	/**
 	 * Get wind velocity specified in the From direction
 	 */
 	public Velocity getWindVelocityFrom() {
-		return core_.wind_vector.Neg();
+		return Velocity.make(core_.wind_vector.Neg());
 	}
 
 	/**
 	 * Set wind velocity specified in the TO direction
-	 * @param wind_vector: Wind velocity specified in TO direction
+	 * @param windto: Wind velocity specified in TO direction
 	 */
-	public void setWindVelocityTo(Velocity wind_vector) {
-		core_.set_wind_velocity(wind_vector);
+	public void setWindVelocityTo(Velocity windto) {
+		core_.set_wind_velocity(windto.vect3());
 		stale_bands();
 	}
 
 	/**
 	 * Set wind velocity specified in the From direction
-	 * @param nwind_vector: Wind velocity specified in From direction
+	 * @param windfrom: Wind velocity specified in From direction
 	 */
-	public void setWindVelocityFrom(Velocity nwind_vector) {
-		setWindVelocityTo(nwind_vector.Neg());
+	public void setWindVelocityFrom(Velocity windfrom) {
+		setWindVelocityTo(windfrom.Neg());
 	}
 
 	/**
@@ -963,13 +1011,27 @@ public class Daidalus implements GenericStateBands {
 	}
 
 	/** 
+	 * @return minimum airspeed speed in internal units [m/s]. 
+	 */
+	public double getMinAirSpeed() {
+		return core_.parameters.getMinAirSpeed();
+	}
+
+	/** 
+	 * @return minimum air speed in specified units [u].
+	 */
+	public double getMinAirSpeed(String u) {
+		return Units.to(u,getMinAirSpeed());
+	}
+
+  	/**
 	 * @return minimum horizontal speed for horizontal speed bands in internal units [m/s].
 	 */
 	public double getMinHorizontalSpeed() {
 		return core_.parameters.getMinHorizontalSpeed();
 	}
 
-	/** 
+  	/**
 	 * @return minimum horizontal speed for horizontal speed bands in specified units [u].
 	 */
 	public double getMinHorizontalSpeed(String u) {
@@ -1518,7 +1580,26 @@ public class Daidalus implements GenericStateBands {
 	}
 
 	/** 
+	 * Set minimum air speed to value in internal units [m/s].
+	 * Minimum air speed must be greater or equal than min horizontal speed.
+	 */
+	public void setMinAirSpeed(double val) {
+		core_.parameters.setMinAirSpeed(val);
+		reset();
+	}
+
+	/** 
+	 * Set minimum air speed to value in specified units [u].
+	 * Minimum air speed must be greater or equal than min horizontal speed.
+	 */
+	public void setMinAirSpeed(double val, String u) {	
+		core_.parameters.setMinAirSpeed(val,u);
+		reset();
+	}
+
+	/** 
 	 * Sets minimum horizontal speed for horizontal speed bands to value in internal units [m/s].
+	 * Minimum horizontal speed must be non-negative.
 	 */
 	public void setMinHorizontalSpeed(double val) {
 		core_.parameters.setMinHorizontalSpeed(val);
@@ -1527,6 +1608,7 @@ public class Daidalus implements GenericStateBands {
 
 	/** 
 	 * Sets minimum horizontal speed for horizontal speed bands to value in specified units [u].
+	 * Minimum horizontal speed must be non-negative.
 	 */
 	public void setMinHorizontalSpeed(double val, String u) {
 		core_.parameters.setMinHorizontalSpeed(val,u);
@@ -2476,14 +2558,14 @@ public class Daidalus implements GenericStateBands {
 	 * Return true if DTA logic is active at current time
 	 */
 	public boolean isActiveDTALogic() {
-		return core_.DTAStatus() != 0;
+		return core_.getSpecialBandFlags().get_dta_status()!= 0;
 	}
 
 	/**
 	 * Return true if DTA special maneuver guidance is active at current time
 	 */
 	public boolean isActiveDTASpecialManeuverGuidance() {
-		return core_.DTAStatus() > 0;
+		return core_.getSpecialBandFlags().get_dta_status() > 0;
 	}
 
 	/** 
@@ -2495,7 +2577,7 @@ public class Daidalus implements GenericStateBands {
 
 	/** 
 	 * Return true if DAA Terminal Area (DTA) logic is enabled with horizontal 
-	 * direction recovery guidance. If true, horizontal direction recovery is fully enabled, 
+	 * direction recovery guidance. If true, horizontal direction recovery is enabled, 
 	 * but vertical recovery blocks down resolutions when alert is higher than corrective.
 	 * NOTE:
 	 * When DTA logic is enabled, DAIDALUS automatically switches to DTA alerter and to
@@ -2529,7 +2611,7 @@ public class Daidalus implements GenericStateBands {
 
 	/** 
 	 * Enable DAA Terminal Area (DTA) logic with horizontal direction recovery guidance, i.e.,
-	 * horizontal direction recovery is fully enabled, but vertical recovery blocks down 
+	 * horizontal direction recovery is enabled, but vertical recovery blocks down 
 	 * resolutions when alert is higher than corrective.
 	 * NOTE:
 	 * When DTA logic is enabled, DAIDALUS automatically switches to DTA alerter and to
@@ -2666,6 +2748,27 @@ public class Daidalus implements GenericStateBands {
 	 */ 
 	public void setDTAAlerter(int alerter) {
 		core_.parameters.setDTAAlerter(alerter);
+		reset();
+	}
+
+	/**
+	 * Get Horizontal Direction Bands Logic When Below Min Airspeed: 
+	 * 0: Horizontal direction bands disabled when airspeed is below min_airspeed
+	 * 1: Instantaneous horizontal direction bands computed assuming min_airspeed 
+	 * -1; Kinematic horizontal direction bands computed assumming min_airspeed
+	 */
+	public int getHorizontalDirBandsBelowMinAirspeed() {
+		return core_.parameters.getHorizontalDirBandsBelowMinAirspeed();
+	}
+
+	/**
+	 * Set Horizontal Direction Bands Logic When Below Min Airspeed: 
+	 * 0: Horizontal direction bands disabled 
+	 * 1: Instantaneous horizontal direction bands computed assuming min_airspeed 
+	 * -1; Kinematic horizontal direction bands computed assumming min_airspeed
+	 */
+	public void setHorizontalDirBandsBelowMinAirspeed(int val) {
+		core_.parameters.setHorizontalDirBandsBelowMinAirspeed(val);
 		reset();
 	}
 
@@ -3806,10 +3909,13 @@ public class Daidalus implements GenericStateBands {
 
 	/**
 	 * Return the most severe alert level with respect to all traffic aircraft
-	 * The number 0 means no alert. A negative number means no traffic aircraft
+	 * Return 0 if no alert. Return -1 if ownship has not been set
 	 */
 	public int alertLevelAllTraffic() {
-		int max = -1;
+		if (!hasOwnship()) {
+			return -1;
+		}
+		int max = 0;
 		for (int ac_idx=1; ac_idx <= lastTrafficIndex(); ++ac_idx) {
 			int alert = alertLevel(ac_idx);
 			if (alert > max) {
@@ -3817,6 +3923,19 @@ public class Daidalus implements GenericStateBands {
 			}
 		}
 		return max;
+	}
+
+	/**
+	 * Returns true if ownship is in confict with respect the corrective volume with any traffic aircraft.
+	 */
+	public boolean inCorrectiveConflict() {
+		for (int ac_idx=1; ac_idx <= lastTrafficIndex(); ++ac_idx) {
+			int alert = alertLevel(ac_idx);
+			if (alert > 0 && alert >= alertLevelOfRegion(ac_idx,getCorrectiveRegion())) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/**
@@ -4016,8 +4135,8 @@ public class Daidalus implements GenericStateBands {
 	 */
 	public double horizontalClosureRate(int ac_idx) {
 		if (1 <= ac_idx && ac_idx <= lastTrafficIndex()) {
-			Velocity v = core_.ownship.get_v().Sub(core_.traffic.get(ac_idx-1).get_v());
-			return v.norm2D();
+			Vect2 v = core_.ownship.get_v().vect2().Sub(core_.traffic.get(ac_idx-1).get_v().vect2());
+			return v.norm();
 		} else {
 			return Double.NaN;
 		}
@@ -4066,9 +4185,9 @@ public class Daidalus implements GenericStateBands {
 	 */
 	public double predictedHorizontalMissDistance(int ac_idx) {
 		if (1 <= ac_idx && ac_idx <= lastTrafficIndex()) {
-			Vect3 s = core_.ownship.get_s().Sub(core_.traffic.get(ac_idx-1).get_s());
-			Velocity v = core_.ownship.get_v().Sub(core_.traffic.get(ac_idx-1).get_v());
-			return Horizontal.hmd(s.vect2(),v.vect2(),getLookaheadTime());
+			Vect2 s = core_.ownship.get_s().vect2().Sub(core_.traffic.get(ac_idx-1).get_s().vect2());
+			Vect2 v = core_.ownship.get_v().vect2().Sub(core_.traffic.get(ac_idx-1).get_v().vect2());
+			return Horizontal.hmd(s,v,getLookaheadTime());
 		} else {
 			return Double.NaN;
 		}
@@ -4092,9 +4211,9 @@ public class Daidalus implements GenericStateBands {
 	 */
 	public double predictedVerticalMissDistance(int ac_idx) {
 		if (1 <= ac_idx && ac_idx <= lastTrafficIndex()) {
-			Vect3 s = core_.ownship.get_s().Sub(core_.traffic.get(ac_idx-1).get_s());
-			Velocity v = core_.ownship.get_v().Sub(core_.traffic.get(ac_idx-1).get_v());
-			return Vertical.vmd(s.z,v.z,getLookaheadTime());
+			double sz = core_.ownship.get_s().z - core_.traffic.get(ac_idx-1).get_s().z;
+			double vz = core_.ownship.get_v().z-core_.traffic.get(ac_idx-1).get_v().z;
+			return Vertical.vmd(sz,vz,getLookaheadTime());
 		} else {
 			return Double.NaN;
 		}
@@ -4120,9 +4239,9 @@ public class Daidalus implements GenericStateBands {
 	 */
 	public double timeToHorizontalClosestPointOfApproach(int ac_idx) {
 		if (1 <= ac_idx && ac_idx <= lastTrafficIndex()) {
-			Vect3 s = core_.ownship.get_s().Sub(core_.traffic.get(ac_idx-1).get_s());
-			Velocity v = core_.ownship.get_v().Sub(core_.traffic.get(ac_idx-1).get_v());
-			return Util.max(0.0,Horizontal.tcpa(s.vect2(),v.vect2()));
+			Vect2 s = core_.ownship.get_s().vect2().Sub(core_.traffic.get(ac_idx-1).get_s().vect2());
+			Vect2 v = core_.ownship.get_v().vect2().Sub(core_.traffic.get(ac_idx-1).get_v().vect2());
+			return Util.max(0.0,Horizontal.tcpa(s,v));
 		} else {
 			return Double.NaN;
 		}
@@ -4150,13 +4269,13 @@ public class Daidalus implements GenericStateBands {
 	 */
 	public double distanceAtHorizontalClosestPointOfApproach(int ac_idx) {
 		if (1 <= ac_idx && ac_idx <= lastTrafficIndex()) {
-			Vect3 s = core_.ownship.get_s().Sub(core_.traffic.get(ac_idx-1).get_s());
-			Velocity v = core_.ownship.get_v().Sub(core_.traffic.get(ac_idx-1).get_v());
-			double tcpa = Horizontal.tcpa(s.vect2(),v.vect2());
+			Vect2 s = core_.ownship.get_s().vect2().Sub(core_.traffic.get(ac_idx-1).get_s().vect2());
+			Vect2 v = core_.ownship.get_v().vect2().Sub(core_.traffic.get(ac_idx-1).get_v().vect2());
+			double tcpa = Horizontal.tcpa(s,v);
 			if (tcpa <= 0) {
-				return s.norm2D();
+				return s.norm();
 			} else {
-				return s.AddScal(tcpa,v).norm2D();
+				return s.AddScal(tcpa,v).norm();
 			}
 		} else {
 			return Double.NaN;
@@ -4219,8 +4338,8 @@ public class Daidalus implements GenericStateBands {
 	 */
 	public double modifiedTau(int ac_idx, double DMOD) {
 		if (1 <= ac_idx && ac_idx <= lastTrafficIndex()) {
-			Vect2 s = core_.ownship.get_s().Sub(core_.traffic.get(ac_idx-1).get_s()).vect2();
-			Vect2 v = core_.ownship.get_v().Sub(core_.traffic.get(ac_idx-1).get_v()).vect2();
+			Vect2 s = core_.ownship.get_s().vect2().Sub(core_.traffic.get(ac_idx-1).get_s().vect2());
+			Vect2 v = core_.ownship.get_v().vect2().Sub(core_.traffic.get(ac_idx-1).get_v().vect2());
 			double sdotv = s.dot(v);
 			double dmod2 = Util.sq(DMOD)-s.sqv();
 			if (dmod2 < 0 && sdotv < 0) {
@@ -4249,7 +4368,11 @@ public class Daidalus implements GenericStateBands {
 	/* Input/Output methods */
 
 	public String outputStringAircraftStates() {
-		return core_.outputStringAircraftStates(false);
+		return outputStringAircraftStates(true);
+	}
+
+	public String outputStringAircraftStates(boolean header) {
+		return core_.outputStringAircraftStates(false,header);
 	}
 
 	public String rawString() {
@@ -4757,61 +4880,6 @@ public class Daidalus implements GenericStateBands {
 
 	@Deprecated
 	/**
-	 * Use setOwnshipState instead.
-	 * Set ownship state at time 0.0. Clear all traffic. 
-	 * @param id Ownship's identified
-	 * @param pos Ownship's position
-	 * @param vel Ownship's ground velocity
-	 */
-	public void setOwnship(String id, Position pos, Velocity vel) {
-		setOwnshipState(id,pos,vel);
-	}
-
-	@Deprecated
-	/**
-	 * Use setOwnshipState instead.
-	 * Set ownship state at time 0.0. Clear all traffic. Name of ownship will be "Ownship"
-	 * @param pos Ownship's position
-	 * @param vel Ownship's ground velocity
-	 */
-	public void setOwnship(Position pos, Velocity vel) {
-		setOwnshipState("Ownship",pos,vel);
-	}
-
-	@Deprecated
-	/**
-	 * Use addTrafficState instead.
-	 * Add traffic state at current time. If it's the first aircraft, this aircraft is 
-	 * set as the ownship. 
-	 * @param id Aircraft's identifier
-	 * @param pos Aircraft's position
-	 * @param vel Aircraft's ground velocity
-	 * Same function as addTrafficState, but it doesn't return index of added traffic. This is neeeded
-	 * for compatibility with GenericBands
-	 */
-	public void addTraffic(String id, Position pos, Velocity vel) {
-		addTrafficState(id,pos,vel);
-	}
-
-	@Deprecated
-	/**
-	 * Use addTrafficState instead
-	 * Add traffic state at current time. If it's the first aircraft, this aircraft is 
-	 * set as the ownship. Name of aircraft is AC_n, where n is the index of the aicraft
-	 * @param pos Aircraft's position
-	 * @param vel Aircraft's ground velocity
-	 * Same function as addTrafficState, but it doesn't return index of added traffic. 
-	 */
-	public void addTraffic(Position pos, Velocity vel) {
-		if (!hasOwnship()) {
-			setOwnship(pos,vel);
-		} else {
-			addTrafficState("AC_"+f.Fmi(core_.traffic.size()+1),pos,vel);
-		}
-	}
-
-	@Deprecated
-	/**
 	 * Use alertLevel instead
 	 */
 	public int alerting(int ac_idx) {
@@ -4922,13 +4990,14 @@ public class Daidalus implements GenericStateBands {
 		return verticalSpeedRegionAt(i);
 	}
 
+	@Deprecated
 	/**
 	 * @return maximum alert level for all alerters. Returns 0 if alerter list is empty.
 	 */
-	@Deprecated
-	public int maxAlertLevelxxx() {
+	public int maxAlertLevel() {
 		return maxNumberOfAlertLevels();
 	}
+
 
 }
 

@@ -91,31 +91,6 @@ public class Vect3 {
 	public static Vect3 mkXYZ(double x, double y, double z) {
 		return new Vect3(x,y,z);
 	}
-	
-	/**
-	 * Creates a new vector with coordinates (<code>x</code>,<code>y</code>,<code>z</code>) in internal units.
-	 * 
-	 * @param x Real value [internal units]
-	 * @param y Real value [internal units]
-	 * @param z Real value [internal units]
-	 * @return a new vector 
-	 */
-	public static Vect3 mk(double x, double y, double z) {
-		return new Vect3(x,y,z);
-	}
-
-	/**
-	 * Creates a new vector with coordinates (<code>x</code>,<code>y</code>,<code>z</code>) in external units.
-	 * 
-	 * @param x Real value [NM]
-	 * @param y Real value [NM]
-	 * @param z Real value [ft]
-	 * @return a new vector
-	 */
-	public static Vect3 make(double x, double y, double z) {
-		return new Vect3(Units.from("NM",x),Units.from("NM",y),Units.from("ft",z));
-	}
-
 
 	public Vect3 mkX(double nx) {
 		return mkXYZ(nx, y ,z);
@@ -127,24 +102,6 @@ public class Vect3 {
 
 	public Vect3 mkZ(double nz) {
 		return mkXYZ(x, y , nz);
-	}
-
-	/** The x coordinate 
-	 * @return x coordinate */
-	public double x() {
-		return x;
-	}
-
-	/** The y coordinate 
-	 * @return y coordinate */
-	public double y() {
-		return y;
-	}
-
-	/** The z coordinate 
-	 * @return z coordinate */
-	public double z() {
-		return z;
 	}
 
 	/**
@@ -567,15 +524,6 @@ public class Vect3 {
 			// ignore exception
 		}
 		return INVALID;
-	}
-
-	
-	public String toUnitTest() {
-		return "Vect3.make("+(f.Fm8(Units.to("NM",x()))+", "+f.Fm8(Units.to("NM",y())) +", "	+f.Fm8(Units.to("ft",z()))+")");
-	}
-
-	public String toUnitTestSI() {
-		return "Vect3.mkXYZ("+(f.Fm8(x())+", "+f.Fm8(y()) +", "	+f.Fm8(z())+")");
 	}
 	
 	/*

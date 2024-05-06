@@ -17,7 +17,6 @@
 #include "Vect3.h"
 #include "Velocity.h"
 #include "Position.h"
-#include "Point.h"
 #include "Util.h"
 
 namespace larcfm {
@@ -52,7 +51,7 @@ namespace larcfm {
  	 * 
  	 * @param lla reference point
  	 */
-    AziEquiProjection(const LatLonAlt& lla);
+    explicit AziEquiProjection(const LatLonAlt& lla);
     
     /** Create a projection around the given reference point.
      * 

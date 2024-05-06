@@ -53,20 +53,11 @@ LatLonAlt OrthographicProjection::xy2spherical(double x, double y, double alt) c
 
 // OrthographicProjection
 
-OrthographicProjection::OrthographicProjection() {
-	projAlt = 0;
-	llaRef = LatLonAlt::ZERO();
-}
+OrthographicProjection::OrthographicProjection() : projAlt(0), llaRef(LatLonAlt::ZERO()) {}
 
-OrthographicProjection::OrthographicProjection(const LatLonAlt& lla) {
-	projAlt = lla.alt();
-	llaRef = lla;
-}
+OrthographicProjection::OrthographicProjection(const LatLonAlt& lla) : projAlt(lla.alt()), llaRef(lla) {}
 
-OrthographicProjection::OrthographicProjection(double lat, double lon, double alt) {
-	projAlt = alt;
-	llaRef = LatLonAlt::mk(lat, lon, alt);
-}
+OrthographicProjection::OrthographicProjection(double lat, double lon, double alt) : projAlt(alt), llaRef(LatLonAlt::mk(lat, lon, alt)) {}
 
 OrthographicProjection OrthographicProjection::makeNew(const LatLonAlt& lla) const {
 	return OrthographicProjection(lla);
@@ -115,7 +106,7 @@ LatLonAlt OrthographicProjection::inverse(const Vect2& xy, double alt) const {
 }
 
 LatLonAlt OrthographicProjection::inverse(const Vect3& xyz) const {
-	return inverse(xyz.vect2(), xyz.z);
+	return inverse(xyz.vect2(), xyz.z());
 }
 
 Velocity OrthographicProjection::projectVelocity(const LatLonAlt& lla, const Velocity& v) const {
@@ -139,7 +130,7 @@ Velocity OrthographicProjection::projectVelocity(const Position& ss, const Veloc
 Velocity OrthographicProjection::inverseVelocity(const Vect3& s, const Velocity& v, bool toLatLon) const {
 	if (toLatLon) {
 		double timeStep = 10.0;
-		Vect3 s2 = s.linear(v,timeStep);
+		Vect3 s2 = s.linear(v.vect3(),timeStep);
 		LatLonAlt lla1 = inverse(s);
 		LatLonAlt lla2 = inverse(s2);
 		Velocity nv = GreatCircle::velocity_initial(lla1,lla2,timeStep);

@@ -9,7 +9,6 @@
 #include "CD2D.h"
 #include "CD3D.h"
 #include "Vect3.h"
-#include "Velocity.h"
 #include "TCASTable.h"
 #include "Util.h"
 #include "Vertical.h"
@@ -23,15 +22,9 @@
 
 namespace larcfm {
 
-TCAS3D::TCAS3D() {
-  table_ = TCASTable::make_TCASII_Table(true);
-  id = "";
-}
+TCAS3D::TCAS3D() : table_(TCASTable::make_TCASII_Table(true)), id("") {}
 
-TCAS3D::TCAS3D(const TCASTable& tab) {
-  table_ = tab;
-  id = "";
-}
+TCAS3D::TCAS3D(const TCASTable& tab) : table_(tab), id("") {}
 
 /**
  * @return one static TCAS3D
@@ -88,7 +81,7 @@ void TCAS3D::setDefaultTCASIIThresholds(bool ra) {
   table_.setDefaultTCASIIThresholds(ra);
 }
 
-ConflictData TCAS3D::conflictDetection(const Vect3& so, const Velocity& vo, const Vect3& si, const Velocity& vi, double B, double T) const {
+ConflictData TCAS3D::conflictDetection(const Vect3& so, const Vect3& vo, const Vect3& si, const Vect3& vi, double B, double T) const {
   return RA3D(so,vo,si,vi,B,T);
 }
 
@@ -133,7 +126,7 @@ bool TCAS3D::TCASII_RA(const Vect3& so, const Vect3& vo, const Vect3& si, const 
   Vect2 vo2 = vo.vect2();
   Vect2 vi2 = vi.vect2();
   Vect2 v2 = vo2.Sub(vi2);
-  int sl = table_.getSensitivityLevel(so.z);
+  int sl = table_.getSensitivityLevel(so.z());
   bool usehmdf = table_.getHMDFilter();
   double TAU  = table_.getTAU(sl);
   double TCOA = table_.getTCOA(sl);
@@ -143,16 +136,16 @@ bool TCAS3D::TCASII_RA(const Vect3& so, const Vect3& vo, const Vect3& si, const 
 
   return (!usehmdf || cd2d_TCAS(HMD,s2,vo2,vi2)) &&
       TCAS2D::horizontal_RA(DMOD,TAU,s2,v2) &&
-      vertical_RA(so.z-si.z,vo.z-vi.z,ZTHR,TCOA);
+      vertical_RA(so.z()-si.z(),vo.z()-vi.z(),ZTHR,TCOA);
 }
 
 // if true, within lookahead time interval [B,T], the ownship has a TCAS resolution advisory (effectively conflict detection)
 // B must be non-negative and T > B
 
-ConflictData TCAS3D::RA3D(const Vect3& so, const Velocity& vo, const Vect3& si, const Velocity& vi, double B, double T) const {
+ConflictData TCAS3D::RA3D(const Vect3& so, const Vect3& vo, const Vect3& si, const Vect3& vi, double B, double T) const {
 
   Vect3 s = so.Sub(si);
-  Velocity v = Velocity(vo.Sub(vi));
+  Vect3 v = vo.Sub(vi);
   Vect2 so2 = so.vect2();
   Vect2 vo2 = vo.vect2();
   Vect2 si2 = si.vect2();
@@ -165,10 +158,10 @@ ConflictData TCAS3D::RA3D(const Vect3& so, const Velocity& vo, const Vect3& si, 
   double tin = INFINITY;
   double tout = -INFINITY;
   double tmin = INFINITY;
-  int sl_first = table_.getSensitivityLevel(so.z+B*vo.z);
-  int sl_last = table_.getSensitivityLevel(so.z+T*vo.z);
-  if (sl_first == sl_last || Util::almost_equals(vo.z,0.0)) {
-    Triple<double,double,double> ra3dint = RA3D_interval(sl_first,so2,so.z,vo2,vo.z,si2,si.z,vi2,vi.z,B,T);
+  int sl_first = table_.getSensitivityLevel(so.z()+B*vo.z());
+  int sl_last = table_.getSensitivityLevel(so.z()+T*vo.z());
+  if (sl_first == sl_last || Util::almost_equals(vo.z(),0.0)) {
+    Triple<double,double,double> ra3dint = RA3D_interval(sl_first,so2,so.z(),vo2,vo.z(),si2,si.z(),vi2,vi.z(),B,T);
     tin = ra3dint.first;
     tout = ra3dint.second;
     tmin = ra3dint.third;
@@ -177,8 +170,8 @@ ConflictData TCAS3D::RA3D(const Vect3& so, const Velocity& vo, const Vect3& si, 
     for (double t_B = B; t_B < T; sl = sl_first < sl_last ? sl+1 : sl-1) {
       if (table_.isValidSensitivityLevel(sl)) {
         double level = sl_first < sl_last ? table_.getLevelAltitudeUpperBound(sl) :table_.getLevelAltitudeLowerBound(sl);
-        double t_level = !ISFINITE(level) ? INFINITY :(level-so.z)/vo.z;
-        Triple<double,double,double> ra3dint = RA3D_interval(sl,so2,so.z,vo2,vo.z,si2,si.z,vi2,vi.z,t_B,Util::min(t_level,T));
+        double t_level = !ISFINITE(level) ? INFINITY :(level-so.z())/vo.z();
+        Triple<double,double,double> ra3dint = RA3D_interval(sl,so2,so.z(),vo2,vo.z(),si2,si.z(),vi2,vi.z(),t_B,Util::min(t_level,T));
         if (Util::almost_less(ra3dint.first,ra3dint.second)) {
           tin = Util::min(tin,ra3dint.first);
           tout = Util::max(tout,ra3dint.second);
@@ -428,17 +421,17 @@ void TCAS3D::setIdentifier(const std::string& s) {
   id = s;
 }
 
-bool TCAS3D::equals(Detection3D* d) const {
-  if (!larcfm::equals(getCanonicalClassName(), d->getCanonicalClassName())) return false;
-  if (!larcfm::equals(id, d->getIdentifier())) return false;
-  if (!table_.equals(((TCAS3D*)d)->table_)) return false;
+bool TCAS3D::equals(const Detection3D& cd) const {
+  if (!larcfm::equals(getCanonicalClassName(), cd.getCanonicalClassName())) return false;
+  if (!larcfm::equals(id, cd.getIdentifier())) return false;
+  if (!table_.equals(((TCAS3D&)cd).table_)) return false;
   return true;
 }
 
-bool TCAS3D::contains(const Detection3D* cd) const {
-  if (larcfm::equals(getCanonicalClassName(), cd->getCanonicalClassName())) {
-    TCAS3D* d = (TCAS3D*)cd;
-    return table_.contains(d->table_);
+bool TCAS3D::contains(const Detection3D& cd) const {
+  if (larcfm::equals(getCanonicalClassName(), cd.getCanonicalClassName())) {
+    const TCAS3D& td = (TCAS3D&)cd;
+    return table_.contains(td.table_);
   }
   return false;
 }
@@ -451,18 +444,18 @@ void TCAS3D::horizontalHazardZone(std::vector<Position>& haz, const TrafficState
   double DMOD = Util::max(table_.getDMOD(sl),table_.getHMD(sl));
   haz.clear();
   Position po = ownship.getPosition();
-  Velocity v = Velocity::make(ownship.getVelocity().Sub(intruder.getVelocity()));
-  if (Util::almost_equals(TAUMOD+T,0) || Util::almost_equals(v.norm2D(),0)) {
+  Velocity v = ownship.getVelocity().Sub(intruder.getVelocity().vect3());
+  if (Util::almost_equals(TAUMOD+T,0) || Util::almost_equals(v.vect3().norm2D(),0)) {
     CDCylinder::circular_arc(haz,po,Velocity::mkVxyz(DMOD,0,0),2*Pi,false);
   } else {
-    Vect3 sD = Horizontal::unit_perpL(v).Scal(DMOD);
+    Vect3 sD = Horizontal::unit_perpL(v.vect3()).Scal(DMOD);
     Velocity vD = Velocity::make(sD);
     CDCylinder::circular_arc(haz,po,vD,Pi,usehmdf);
     Position TAU_center = WCV_TAUMOD::TAU_center(po,v,TAUMOD,T);
-    Vect3 vC = v.Scal(0.5*TAUMOD);     // TAUMOD Center (relative)
+    Vect3 vC = v.vect3().Scal(0.5*TAUMOD);     // TAUMOD Center (relative)
     if (usehmdf) {
-      Vect3 vDC = vC.Sub(vD); // Far end point opposite to -vD (vC-relative);
-      Vect3 nvDC = vC.Add(vD); // Far end point opposite to vD (vC-relative);
+      Vect3 vDC = vC.Sub(vD.vect3()); // Far end point opposite to -vD (vC-relative);
+      Vect3 nvDC = vC.Add(vD.vect3()); // Far end point opposite to vD (vC-relative);
       double sqa = vDC.sqv2D();
       double alpha = Util::atan2_safe(vDC.det2D(nvDC)/sqa,vDC.dot2D(nvDC)/sqa);
       Velocity velDC = Velocity::make(vDC);
@@ -476,7 +469,7 @@ void TCAS3D::horizontalHazardZone(std::vector<Position>& haz, const TrafficState
         double alpha = Util::atan2_safe(nsCD.det2D(sCD)/sqa,nsCD.dot2D(sCD)/sqa);
         CDCylinder::circular_arc(haz,TAU_center,nvCD,alpha,false);
       } else { // Two circles: DMOD and TAUMOD. They intersect at +/- vD.
-        Vect3 sT = Horizontal::unit_perpL(v).Scal(std::sqrt(sqa));
+        Vect3 sT = Horizontal::unit_perpL(v.vect3()).Scal(std::sqrt(sqa));
         Velocity vT = Velocity::make(sT);
         Vect3 nsT = sT.Neg();
         Velocity nvT = Velocity::make(nsT);

@@ -79,15 +79,7 @@ namespace larcfm {
 	}
 
 	void SeparatedOutput::close() {
-		if (writer != NULL) {
-//			try {
-//				std::ofstream* fwriter = dynamic_cast<std::ofstream*>(writer);
-//				fwriter->close();
-//			} catch (std::bad_cast e) {
-//				// not an ofstream, so do nothing
-//			}
-			writer = NULL;
-		}
+		writer = NULL;
 	}
 
 	/** Return the heading for the given column */ 
@@ -351,7 +343,7 @@ namespace larcfm {
    /** 
     * The value to be displayed if a column is "skipped".  Empty values are only added inside a line, not at the end.
     */
-   void SeparatedOutput::setEmptyValue(std::string e) {
+   void SeparatedOutput::setEmptyValue(const std::string& e) {
 	   empty = e;
    }
    
@@ -428,7 +420,7 @@ namespace larcfm {
 //		}
 	}
     
-    void SeparatedOutput::print_line(std::vector<std::string> vals) { // throws IOException {
+    void SeparatedOutput::print_line(const std::vector<std::string>& vals) { // throws IOException {
     	if (vals.size() == 0) {
     		return;
     	}
@@ -441,7 +433,7 @@ namespace larcfm {
     }
 
     
-    std::string SeparatedOutput::toString() {
+    std::string SeparatedOutput::toString() const {
     	std::string str = "SeparateOutput: ";
     	str += "\n";
     	str += " header_str:";

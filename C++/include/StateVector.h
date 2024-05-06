@@ -15,6 +15,9 @@
 #ifndef STATEVECTOR_H_
 #define STATEVECTOR_H_
 
+#include "Vect3.h"
+#include "Velocity.h"
+
 namespace larcfm {
 
 /**
@@ -29,13 +32,9 @@ public:
 	Velocity  vv;    // v ;
 	double    tt ;   // t;
 
-
-
-	StateVector(const Vect3& ss=Vect3::ZERO(), const Velocity& vv=Velocity::ZEROV(), const double tt=0);
+	explicit StateVector(const Vect3& ss=Vect3::ZERO(), const Velocity& vv=Velocity::ZERO(), const double tt=0);
 
     StateVector(const std::pair<Vect3,Velocity>& sv, double t );
-
-	static StateVector makeXYZ(double x, double y, double z, double trk, double gs, double vs, double t);
 
 	std::pair<Vect3,Velocity> pair() const;
 

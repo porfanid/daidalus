@@ -29,8 +29,8 @@ Horizontal::Horizontal(const Vect2& v) : Vect2(v), k(1.0) {}
 Horizontal::Horizontal(double kk, const Vect2& v) : Vect2(v), k(kk) {}
 
 const Horizontal& Horizontal::NoHorizontalSolution() {
-  static Horizontal* tmp = new Horizontal();
-  return *tmp;
+  const static Horizontal tmp;
+  return tmp;
 }
 
 bool Horizontal::undef() const {
@@ -101,12 +101,9 @@ bool Horizontal::horizontal_dir_at(const Vect2& s, const Vect2& v, const double 
   return horizontal_dir(sp,v,dir);
 }
 
-
 bool Horizontal::horizontal_entry(const Vect2& s, const Vect2& v) {
   return horizontal_dir(s,v,-1);
 }
-
-
 
 Vect2 Horizontal::Vdir(const Vect2& s, const Vect2& v) {
   Vect2 ps = s.PerpR();
@@ -163,11 +160,11 @@ Horizontal Horizontal::gs_only_vertical(const Vect2& s, const Vect2& vo, const V
 Horizontal Horizontal::gs_vertical(const Vect3& s, const Vect3& vo, const Vect3& vi,
     const TangentLine& l, const int epsv,
     const double D, const double H) {
-  if (!Util::almost_equals(vo.z,vi.z)) {
+  if (!Util::almost_equals(vo.z(),vi.z())) {
     Vect3  v   = vo-vi;
-    int    dir = std::abs(s.z) >= H ? epsv*sign(s.z) : larcfm::Entry;
-    double t   = Vertical::Theta_H(s.z,vo.z-vi.z,-dir,H);
-    if (t > 0 && epsv == sign(s.z + t*v.z)) {
+    int    dir = std::abs(s.z()) >= H ? epsv*sign(s.z()) : larcfm::Entry;
+    double t   = Vertical::Theta_H(s.z(),vo.z()-vi.z(),-dir,H);
+    if (t > 0 && epsv == sign(s.z() + t*v.z())) {
       Horizontal nvo2 = gs_only_vertical(s.vect2(),vo.vect2(),vi.vect2(),t,dir,D);
       if (almost_horizontal_los(s.vect2(),D) || l.horizontal_criterion(nvo2-vo.vect2()))
         return nvo2;
@@ -199,8 +196,8 @@ Horizontal Horizontal::gs_only_circle(const Vect2& s, const Vect2& vo, const Vec
 
 Horizontal Horizontal::gs_circle(const Vect3& s, const Vect3& vo, const Vect3& vi,
     const int dir, const int irt, const double D, const double H) {
-  if (!Util::almost_equals(vo.z,vi.z)) {
-    double t = Vertical::Theta_H(s.z,vo.z-vi.z,-dir,H);
+  if (!Util::almost_equals(vo.z(),vi.z())) {
+    double t = Vertical::Theta_H(s.z(),vo.z()-vi.z(),-dir,H);
     return gs_only_circle(s.vect2(),vo.vect2(),vi.vect2(),t,dir,irt,D);
   }
   return NoHorizontalSolution();
@@ -260,11 +257,11 @@ Horizontal Horizontal::trk_only_vertical(const Vect2& s,const Vect2& vo,const Ve
 
 Horizontal Horizontal::trk_vertical_irt(const Vect3& s,const Vect3& vo,const Vect3& vi,const TangentLine& l,
     const int epsv,const int irt,const double D,const double H) {
-  if (!Util::almost_equals(vo.z,vi.z)) {
+  if (!Util::almost_equals(vo.z(),vi.z())) {
     Vect3  v   = vo-vi;
-    int    dir = std::abs(s.z) >= H ? epsv*sign(s.z) : larcfm::Entry;
-    double t   = Vertical::Theta_H(s.z,vo.z-vi.z,-dir,H);
-    if (t > 0 && epsv == sign(s.z + t*v.z)) {
+    int    dir = std::abs(s.z()) >= H ? epsv*sign(s.z()) : larcfm::Entry;
+    double t   = Vertical::Theta_H(s.z(),vo.z()-vi.z(),-dir,H);
+    if (t > 0 && epsv == sign(s.z() + t*v.z())) {
       Horizontal nvo2 = trk_only_vertical(s.vect2(),vo.vect2(),vi.vect2(),t,dir,irt,D);
       if (almost_horizontal_los(s.vect2(),D) || l.horizontal_criterion(nvo2-vo.vect2()))
         return nvo2;
@@ -301,8 +298,8 @@ Horizontal Horizontal::trk_only_circle(const Vect2& s, const Vect2& vo, const Ve
 
 Horizontal Horizontal::trk_circle(const Vect3& s, const Vect3& vo, const Vect3& vi,
     const int dir, const int irt, const double D, const double H) {
-  if (!Util::almost_equals(vo.z, vi.z)) {
-    double t = Vertical::Theta_H(s.z,vo.z-vi.z,-dir,H);
+  if (!Util::almost_equals(vo.z(), vi.z())) {
+    double t = Vertical::Theta_H(s.z(),vo.z()-vi.z(),-dir,H);
     return trk_only_circle(s.vect2(),vo.vect2(),vi.vect2(),t,dir,irt,D);
   }
   return NoHorizontalSolution();
@@ -348,7 +345,7 @@ Horizontal Horizontal::opt_trk_gs_vertical(const Vect2& s,const Vect2& vo,const 
     double td = Theta_D(s,v,dir,D);
     if (td > 0) {
       Vect2 p = s.AddScal(td, s); //s + v*td;
-      opt_trk_gs_dot(p*th,vo,vi,sq(D)-s*p);
+      return opt_trk_gs_dot(p*th,vo,vi,sq(D)-s*p);
     }
   }
   return NoHorizontalSolution();
@@ -356,11 +353,11 @@ Horizontal Horizontal::opt_trk_gs_vertical(const Vect2& s,const Vect2& vo,const 
 
 Horizontal Horizontal::opt_vertical(const Vect3& s,const Vect3& vo,const Vect3& vi,const TangentLine& l,
     const int epsv,const double D,const double H) {
-  if (!Util::almost_equals(vo.z,vi.z)) {
+  if (!Util::almost_equals(vo.z(),vi.z())) {
     Vect3  v   = vo-vi;
-    int    dir = std::abs(s.z) >= H ? epsv*sign(s.z) : larcfm::Entry;
-    double t   = Vertical::Theta_H(s.z,vo.z-vi.z,-dir,H);
-    if (t > 0 && epsv == sign(s.z + t*v.z)) {
+    int    dir = std::abs(s.z()) >= H ? epsv*sign(s.z()) : larcfm::Entry;
+    double t   = Vertical::Theta_H(s.z(),vo.z()-vi.z(),-dir,H);
+    if (t > 0 && epsv == sign(s.z() + t*v.z())) {
       Horizontal nvo2 = opt_trk_gs_vertical(s.vect2(),vo.vect2(),vi.vect2(),t,dir,D);
       if (almost_horizontal_los(s.vect2(),D) || l.horizontal_criterion(nvo2-vo.vect2()))
         return nvo2;

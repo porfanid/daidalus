@@ -73,7 +73,7 @@ public class TCAS3D extends Detection3D {
 	// The methods violation and conflict are inherited from Detection3DSum. This enable a uniform
 	// treatment of border cases in the generic bands algorithms
 
-	public ConflictData conflictDetection(Vect3 so, Velocity vo, Vect3 si, Velocity vi, double B, double T) {
+	public ConflictData conflictDetection(Vect3 so, Vect3 vo, Vect3 si, Vect3 vi, double B, double T) {
 		return RA3D(so,vo,si,vi,B,T);
 	}
 
@@ -136,10 +136,10 @@ public class TCAS3D extends Detection3D {
 	// if true, within lookahead time interval [B,T], the ownship has a TCAS resolution advisory (effectively conflict detection)
 	// B must be non-negative and B < T.
 
-	public ConflictData RA3D(Vect3 so, Velocity vo, Vect3 si, Velocity vi, double B, double T) {
+	public ConflictData RA3D(Vect3 so, Vect3 vo, Vect3 si, Vect3 vi, double B, double T) {
 
 		Vect3 s = so.Sub(si);
-		Velocity v = vo.Sub(vi);
+		Vect3 v = vo.Sub(vi);
 		Vect2 so2 = so.vect2();
 		Vect2 vo2 = vo.vect2();
 		Vect2 si2 = si.vect2();
@@ -456,18 +456,18 @@ public class TCAS3D extends Detection3D {
 		double DMOD = Util.max(table_.getDMOD(sl),table_.getHMD(sl));
 		haz.clear();
 		Position po = ownship.getPosition();
-		Velocity v = ownship.getVelocity().Sub(intruder.getVelocity());
-		if (Util.almost_equals(TAUMOD+T,0) || Util.almost_equals(v.norm2D(),0)) {
+		Velocity v = ownship.getVelocity().Sub(intruder.getVelocity().vect3());
+		if (Util.almost_equals(TAUMOD+T,0) || Util.almost_equals(v.vect3().norm2D(),0)) {
 			CDCylinder.circular_arc(haz,po,Velocity.mkVxyz(DMOD,0,0),2*Math.PI,false);
 		} else {
-			Vect3 sD = Horizontal.unit_perpL(v).Scal(DMOD);
+			Vect3 sD = Horizontal.unit_perpL(v.vect3()).Scal(DMOD);
 			Velocity vD = Velocity.make(sD);
 			CDCylinder.circular_arc(haz,po,vD,Math.PI,usehmdf);	
 			Position TAU_center = WCV_TAUMOD.TAU_center(po,v,TAUMOD,T);
-			Vect3 vC = v.Scal(0.5*TAUMOD);     // TAUMOD Center (relative)
+			Vect3 vC = v.vect3().Scal(0.5*TAUMOD);     // TAUMOD Center (relative)
 			if (usehmdf) {
-				Vect3 vDC = vC.Sub(vD); // Far end point opposite to -vD (vC-relative);
-				Vect3 nvDC = vC.Add(vD); // Far end point opposite to vD (vC-relative);
+				Vect3 vDC = vC.Sub(vD.vect3()); // Far end point opposite to -vD (vC-relative);
+				Vect3 nvDC = vC.Add(vD.vect3()); // Far end point opposite to vD (vC-relative);
 				double sqa = vDC.sqv2D();
 				double alpha = Util.atan2_safe(vDC.det2D(nvDC)/sqa,vDC.dot2D(nvDC)/sqa);	
 				Velocity velDC = Velocity.make(vDC);
@@ -481,7 +481,7 @@ public class TCAS3D extends Detection3D {
 					double alpha = Util.atan2_safe(nsCD.det2D(sCD)/sqa,nsCD.dot2D(sCD)/sqa);	
 					CDCylinder.circular_arc(haz,TAU_center,nvCD,alpha,false);		
 				} else { // Two circles: DMOD and TAUMOD. They intersect at +/- vD. 
-					Vect3 sT = Horizontal.unit_perpL(v).Scal(Math.sqrt(sqa));
+					Vect3 sT = Horizontal.unit_perpL(v.vect3()).Scal(Math.sqrt(sqa));
 					Velocity vT = Velocity.make(sT);
 					Vect3 nsT = sT.Neg();
 					Velocity nvT = Velocity.make(nsT);

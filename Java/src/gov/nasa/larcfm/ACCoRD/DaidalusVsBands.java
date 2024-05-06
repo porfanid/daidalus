@@ -21,7 +21,7 @@ public class DaidalusVsBands extends DaidalusRealBands {
 		super(b);
 	}
 
-	public boolean get_recovery(DaidalusParameters parameters) {
+	public boolean do_recovery(DaidalusParameters parameters) {
 		return parameters.isEnabledRecoveryVerticalSpeedBands();
 	}
 
@@ -45,14 +45,18 @@ public class DaidalusVsBands extends DaidalusRealBands {
 		return parameters.getAboveRelativeVerticalSpeed();
 	}
 
-	public void set_special_configuration(DaidalusParameters parameters, int dta_status) {	
-		if (dta_status > 0) { 
+	public boolean saturate_corrective_bands(DaidalusParameters parameters, SpecialBandFlags special_flags) {
+		return false;
+	}
+
+	public void set_special_configuration(DaidalusParameters parameters, SpecialBandFlags special_flags) {	
+		if (special_flags.get_dta_status() > 0.0) { 
 			set_min_max_rel(0,-1);
 		}
 	}
 
 	public boolean instantaneous_bands(DaidalusParameters parameters) {
-		return parameters.getVerticalAcceleration() == 0;
+		return parameters.getVerticalAcceleration() == 0.0;
 	}
 
 	public double own_val(TrafficState ownship) {
@@ -60,12 +64,13 @@ public class DaidalusVsBands extends DaidalusRealBands {
 	}
 
 	public double time_step(DaidalusParameters parameters,TrafficState ownship) {
-		return get_step(parameters)/parameters.getVerticalAcceleration();
+		// This function is never called when vertical acceleration is zero
+		return parameters.getVerticalAcceleration() == 0.0 ? 0.0 : get_step(parameters)/parameters.getVerticalAcceleration();
 	}
 
-	public Pair<Vect3, Velocity> trajectory(DaidalusParameters parameters, TrafficState ownship, double time, boolean dir, int target_step, boolean instantaneous) {    
+	public Pair<Vect3, Vect3> trajectory(DaidalusParameters parameters, TrafficState ownship, double time, boolean dir, int target_step, boolean instantaneous) {    
 		Pair<Position,Velocity> posvel;
-		if (time == 0 && target_step == 0) {
+		if (time == 0.0 && target_step == 0.0) {
 			return Pair.make(ownship.get_s(),ownship.get_v());
 		} else if (instantaneous) {
 			double vs = ownship.velocityXYZ().vs()+(dir?1:-1)*target_step*get_step(parameters); 

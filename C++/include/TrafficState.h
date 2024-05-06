@@ -43,8 +43,14 @@ public:
 
   static const TrafficState& INVALID();
 
-  // Set air velocity to new_avel
-  void setAirVelocity(const Velocity &new_avel);
+  // Set air velocity to new_avel. This method sets ground speed appropriately based on current wind
+  void setAirVelocity(const Velocity &airvel);
+
+  /**
+	 * Reset air velocity.  
+	 * @param airvel New air velocity
+	 */
+  void resetAirVelocity(const Velocity &airvel); 
 
   // Set position to new_pos and apply Euclidean projection. This methods doesn't change ownship, i.e.,
   // the resulting aircraft is considered as another intruder.
@@ -56,8 +62,9 @@ private:
    * @param id Aircraft's identifier
    * @param pos Aircraft's position
    * @param vel Aircraft's ground velocity
+   * @param airvel Aircraft's air velocity
    */
-  TrafficState(const std::string& id, const Position& pos, const Velocity& vel);
+  TrafficState(const std::string& id, const Position& pos, const Velocity& vel, const Velocity& airvel);
 
   /**
    * Create a traffic state
@@ -67,7 +74,7 @@ private:
    * @param eprj Euclidean projection
    */
   TrafficState(const std::string& id, const Position& pos, const Velocity& vel,
-      EuclideanProjection eprj,int alerter);
+      const EuclideanProjection& eprj,int alerter);
 
   /**
    * Apply Euclidean projection. Requires aircraft's position in lat/lon
@@ -87,9 +94,10 @@ public:
    * @param id Ownship's identifier
    * @param pos Ownship's position
    * @param vel Ownship's ground velocity
+   * @param airvel Ownship's air velocity
    */
 
-  static TrafficState makeOwnship(const std::string& id, const Position& pos, const Velocity& vel);
+  static TrafficState makeOwnship(const std::string& id, const Position& pos, const Velocity& vel, const Velocity& airvel);
 
   /**
    * Set aircraft as intruder of ownship
@@ -120,13 +128,13 @@ public:
    * Set wind velocity
    * @param wind_vector Wind velocity specified in the TO direction
    */
-  void applyWindVector(const Velocity& wind_vector);
+  void applyWindVector(const Vect3& wind_vector);
 
   /**
    * Return wind velocity in the to direction
    * @return
    */
-  Velocity windVector() const;
+  Vect3 windVector() const;
 
   /**
    * Return Euclidean projection
@@ -135,11 +143,11 @@ public:
 
   const Vect3& get_s() const;
 
-  const Velocity& get_v() const;
+  const Vect3& get_v() const;
 
   Vect3 pos_to_s(const Position& p) const;
 
-  Velocity vel_to_v(const Position& p,const Velocity& v) const;
+  Vect3 vel_to_v(const Position& p,const Velocity& v) const;
 
   Velocity inverseVelocity(const Velocity& v) const;
 
@@ -161,6 +169,8 @@ public:
 
   static std::string listToString(const std::vector<std::string>& traffic);
 
+  static std::string formattedHeader(bool latlon, const std::string& utrk, const std::string& uxy, const std::string& ualt, const std::string& ugs, const std::string& uvs);
+
   std::string formattedHeader(const std::string& utrk, const std::string& uxy, const std::string& ualt, const std::string& ugs, const std::string& uvs) const;
 
   std::string formattedTrafficState(const std::string& utrk, const std::string& uxy, const std::string& ualt, const std::string& ugs, const std::string& uvs, double time) const;
@@ -169,7 +179,7 @@ public:
       const std::string& utrk, const std::string& uxy, const std::string& ualt, const std::string& ugs, const std::string& uvs, double time);
 
   std::string formattedTraffic(const std::vector<TrafficState>& traffic,
-      const std::string& utrk, const std::string& uxy, const std::string& ualt, const std::string& ugs, const std::string& uvs, double time) const;
+      const std::string& utrk, const std::string& uxy, const std::string& ualt, const std::string& ugs, const std::string& uvs, double time, bool header) const;
 
   std::string toPVS() const;
 

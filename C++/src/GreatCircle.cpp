@@ -365,10 +365,10 @@ LatLonAlt GreatCircle::linear_gcgs(const LatLonAlt& p1, const LatLonAlt& p2, con
 		return p1;
 	}
 	double f = angle_from_distance(v.gs() * t) / d;
-	return interpolate_impl(p1, p2, d, f, p1.alt() + v.z*t);
+	return interpolate_impl(p1, p2, d, f, p1.alt() + v.z()*t);
 }
 
-LatLonAlt GreatCircle::linear_gc(LatLonAlt p1, LatLonAlt p2, double d) {
+LatLonAlt GreatCircle::linear_gc(const LatLonAlt& p1, const LatLonAlt& p2, double d) {
 	//return GreatCircle.linear_initial(p1, initial_course(p1,p2), d);
 	double dist = angular_distance(p1,p2);
 	double f = angle_from_distance(d)/dist;
@@ -376,7 +376,7 @@ LatLonAlt GreatCircle::linear_gc(LatLonAlt p1, LatLonAlt p2, double d) {
 }
 
 LatLonAlt GreatCircle::linear_rhumb(const LatLonAlt& s, const Velocity& v, double t) {
-	return linear_rhumb_impl(s, v.trk(), GreatCircle::angle_from_distance(v.gs() * t), v.z*t);
+	return linear_rhumb_impl(s, v.trk(), GreatCircle::angle_from_distance(v.gs() * t), v.z()*t);
 }
 
 LatLonAlt GreatCircle::linear_rhumb(const LatLonAlt& s, double track, double dist) {
@@ -508,7 +508,7 @@ bool GreatCircle::gauss_check(double a, double b, double c, double A, double B, 
 
 
 LatLonAlt GreatCircle::linear_initial(const LatLonAlt& s, const Velocity& v, double t) {
-	return linear_initial_impl(s, v.trk(), GreatCircle::angle_from_distance(v.gs() * t), v.z*t);
+	return linear_initial_impl(s, v.trk(), GreatCircle::angle_from_distance(v.gs() * t), v.z()*t);
 }
 
 LatLonAlt GreatCircle::linear_initial(const LatLonAlt& s, double track, double dist) {
@@ -688,46 +688,6 @@ LatLonAlt GreatCircle::closest_point_circle(const LatLonAlt& p1, const LatLonAlt
 	//f.pln("GreatCircle.closest_point_circle INVALID: weird triangle");
 	return LatLonAlt::INVALID(); // weird triangle
 }
-
-
-
-//LatLonAlt GreatCircle::closest_point_segment(const LatLonAlt& p1, const LatLonAlt& p2, const LatLonAlt& x) {
-//	double a = angular_distance(x,p2);
-//	double b = angular_distance(p1,p2);
-//	double c = angular_distance(p1,x);
-//	double A = angle_between(p2,p1,x);
-//	double B = angle_between(p1,x,p2);
-//	double C = angle_between(x,p2,p1);
-//
-//	// collinear
-//	if (Util::within_epsilon(A, 0.000001) || Util::within_epsilon(C, 0.000001) || Util::within_epsilon(M_PI-A, 0.000001) || Util::within_epsilon(M_PI-C, 0.000001)) {
-////		if (Util::almost_equals(A, 0.0) || Util::almost_equals(C, 0.0) || Util::almost_equals(A, Math.PI) || Util::almost_equals(C, Math.PI)) {
-//		if (b >= a && b >= c) {
-//			return x;
-//		} else if (a >= b && a >= c) {
-//			return p1;
-//		} else {
-//			return p2;
-//		}
-//	}
-//
-//	if (A <= M_PI/2 && C <= M_PI/2) {
-//		//   B
-//		//  / \
-//		// A---C
-//		return closest_point_circle(p1,p2,x,a,b,c,A,B,C);
-//	} else if (A <= M_PI/2 && C > M_PI/2) {
-//		//    -- B
-//		//  /   /
-//		// A---C
-//		return p2;
-//	} else {
-//		// B--
-//		//  \   \
-//		//   A---C
-//		return p1;
-//	}
-//}
 
 /**
  * Given two great circles defined by a1,a2 and b1,b2, return the intersection poin that is closest a1.  Use LatLonAlt.antipode() to get the other value.
@@ -948,16 +908,16 @@ Velocity GreatCircle::velocity_initial(const LatLonAlt& p1, const LatLonAlt& p2,
 	if (std::abs(t) < minDt || Util::almost_equals(std::abs(t) + minDt, minDt,
 			PRECISION7)) {
 		// time is negative or very small (less than 1 ms)
-		return Velocity::ZEROV();
+		return Velocity::ZERO();
 	}
 	double d = angular_distance(p1, p2);
 	if (Constants::almost_equals_radian(d)) {
 		if (Constants::almost_equals_alt(p1.alt(), p2.alt())) {
 			// If the two points are about 1 meter apart, then count them as
 			// the same.
-			return Velocity::ZEROV();
+			return Velocity::ZERO();
 		} else {
-			return Velocity::ZEROV().mkVs((p2.alt() - p1.alt()) / t);
+			return Velocity::ZERO().mkVs((p2.alt() - p1.alt()) / t);
 		}
 	}
 	double gs = GreatCircle::distance_from_angle(d, 0.0) / t;
@@ -1014,8 +974,8 @@ Vect3 GreatCircle::spherical2xyz(const LatLonAlt& lla) {
 
 LatLonAlt GreatCircle::xyz2spherical(const Vect3& v) {
 	double r = GreatCircle::spherical_earth_radius;
-	double theta = Util::acos_safe(v.z/r);
-	double phi = Util::atan2_safe(v.y, v.x);
+	double theta = Util::acos_safe(v.z()/r);
+	double phi = Util::atan2_safe(v.y(), v.x());
 	double lat = M_PI/2 - theta;
 	double lon = Util::to_pi(phi); //M_PI - phi);
 	return LatLonAlt::mk(lat, lon, 0);

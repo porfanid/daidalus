@@ -114,7 +114,7 @@ public:
    * @param  R     radius
    * @return       bank angle (positive)
    */
-	static double bankAngleByRadius(double R, double speed);
+	static double bankAngleFromRadius(double speed,double R);
 
   /** 
    * Calculates the bank angle used for a given turn radius and ground speed.   Assumes 
@@ -124,7 +124,7 @@ public:
    * @param turnRight true, if a right turn is desired
    * @return       bank angle (positive = turn right, negative = turn left)
    */
-	  static double bankAngleByRadius(double speed, double R, bool turnRight);
+	  static double bankAngleFromRadius(double speed, double R, bool turnRight);
 
   /**
    * Returns the calculated bank angle for a turn that has specified turnRate. Assumes 
@@ -215,7 +215,7 @@ public:
 	static std::pair<Vect3,Velocity> linear(const std::pair<Vect3,Velocity>& sv0, double t);
 
 
-	static std::pair<Vect3,Velocity> linear(Vect3 so, Velocity vo, double t);
+	static std::pair<Vect3,Velocity> linear(const Vect3& so, const Velocity& vo, double t);
 
 	
 
@@ -533,7 +533,7 @@ public:
 	 * @param v velocity
 	 * @return elevation angle [radians]
 	 */
-	static double elevationAngle(Velocity v);
+	static double elevationAngle(const Velocity& v);
 
 
 	/**
@@ -794,7 +794,7 @@ public:
  * @param p2
  * @return track angle of p2 - p1
  */
-	static double trackFrom(Vect3 p1, Vect3 p2);
+	static double trackFrom(const Vect3& p1, const Vect3& p2);
 
 
 private:

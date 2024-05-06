@@ -27,7 +27,7 @@
 
 namespace larcfm {
 
-std::pair<Position,Velocity> ProjectedKinematics::linear(std::pair<Position,Velocity> p, double t) {
+std::pair<Position,Velocity> ProjectedKinematics::linear(const std::pair<Position,Velocity>& p, double t) {
 	return linear(p.first, p.second, t);
 }
 
@@ -36,7 +36,7 @@ std::pair<Position,Velocity> ProjectedKinematics::linear(const Position& so, con
 	if (so.isLatLon()) {
 		s3 = Projection::createProjection(so.lla().zeroAlt()).project(so);
 	}
-	Vect3 ns = s3.linear(vo,t);
+	Vect3 ns = s3.linear(vo.vect3(),t);
 	if (so.isLatLon()) {
 		return Projection::createProjection(so.lla().zeroAlt()).inverse(ns,vo,true);
 	} else {
@@ -49,7 +49,7 @@ std::pair<Position,Velocity> ProjectedKinematics::linear(const Position& so, con
 /**
  * Calculate the angle of a constant-radius turn from two points and the radius
  */
-double ProjectedKinematics::turnAngle(Position s1, Position s2, double R) {
+double ProjectedKinematics::turnAngle(const Position& s1, const Position& s2, double R) {
 	double distAB = s1.distanceH(s2);
 	return 2*(Util::asin_safe(distAB/(2*R)));
 }
@@ -57,7 +57,7 @@ double ProjectedKinematics::turnAngle(Position s1, Position s2, double R) {
 /**
  * Horizontal distance covered in a turn
  */
-double ProjectedKinematics::turnDistance(Position s1, Position s2, double R) {
+double ProjectedKinematics::turnDistance(const Position& s1, const Position& s2, double R) {
 	return turnAngle(s1,s2,R)*R;
 }
 
@@ -66,7 +66,7 @@ double ProjectedKinematics::turnDistance(Position s1, Position s2, double R) {
  * Given two points on a turn and the velocity (direction) at the first point, determine the direction for the shortest turn going through the second point,
  * returning true if that relative direction is to the right
  */
-bool ProjectedKinematics::clockwise(Position s1, Velocity v1, Position s2) {
+bool ProjectedKinematics::clockwise(const Position& s1, const Velocity& v1, const Position& s2) {
 	double trk1 = v1.trk();
 	double trk2;
 	if (s1.isLatLon()) {
@@ -187,24 +187,27 @@ std::pair<Position,Velocity> ProjectedKinematics::turnUntil(const Position& so, 
 	}
 }
 
-std::pair<Position,Velocity> ProjectedKinematics::turnUntil(std::pair<Position,Velocity> sv, double t, double goalTrack, double bankAngle) {
+std::pair<Position,Velocity> ProjectedKinematics::turnUntil(const std::pair<Position,Velocity>& sv, double t, double goalTrack, double bankAngle) {
 	return turnUntil(sv.first, sv.second,t, goalTrack, bankAngle);
 }
 
-
-
 std::pair<Position,Velocity> ProjectedKinematics::gsAccel(const Position& so, const Velocity& vo, double t, double a) {
-	Vect3 s3 = so.vect3();
-	if (so.isLatLon()) {
-		s3 = Projection::createProjection(so.lla().zeroAlt()).project(so);
-	}
-	Vect3 pres = Kinematics::gsAccelPos(s3,vo,t,a);
-	Velocity vres = Velocity::mkTrkGsVs(vo.trk(),vo.gs()+a*t,vo.vs());
-	if (so.isLatLon()) {
-		return Projection::createProjection(so.lla().zeroAlt()).inverse(pres,vres,true);
-	} else {
-		return std::pair<Position,Velocity>(Position(pres), vres);
-	}
+    if (so.isLatLon()) {
+		EuclideanProjection proj = Projection::createProjection(so.lla().zeroAlt());
+	  	Vect3 s3 = proj.project(so); 
+      	Vect3 pres = Kinematics::gsAccelPos(s3,vo,t,a);
+      	Velocity vres = vo.mkGs(vo.gs()+a*t);
+      	if (vres.gs() == 0.0) {
+        	return std::pair<Position,Velocity>(Position(proj.inverse(pres)),vres);
+      	} else {
+        	return proj.inverse(pres,vres,true);
+      	}
+    } else {
+		Vect3 s3 = so.vect3();
+      	Vect3 pres = Kinematics::gsAccelPos(s3,vo,t,a);
+      	Velocity vres = vo.mkGs(vo.gs()+a*t);
+      	return std::pair<Position,Velocity>(Position(pres),vres); 
+    }
 }
 
 std::pair<Position,Velocity> ProjectedKinematics::gsAccelUntil(const Position& so, const Velocity& vo, double t, double goalGs, double a) {
@@ -229,7 +232,7 @@ std::pair<Position,Velocity> ProjectedKinematics::vsAccel(const Position& so, co
 		s3 = Projection::createProjection(so.lla().zeroAlt()).project(so);
 	}
 	Vect3 pres = Kinematics::vsAccelPos(s3,vo,t, a);
-	Velocity vres = Velocity::mkVxyz(vo.x, vo.y, vo.z+a*t);
+	Velocity vres = Velocity::mkVxyz(vo.x(), vo.y(), vo.z()+a*t);
 	if (so.isLatLon()) {
 		return Projection::createProjection(so.lla().zeroAlt()).inverse(pres,vres,true);
 	} else {
@@ -252,8 +255,6 @@ std::pair<Position,Velocity> ProjectedKinematics::vsAccelUntil(const Position& s
 	}
 }
 
-
-
 // if this fails, it returns a NaN time
 std::pair<Position,double> ProjectedKinematics::intersection(const Position& so, const Velocity& vo, const Position& si, const Velocity& vi) {
 	Vect3 so3 = so.vect3();
@@ -263,14 +264,13 @@ std::pair<Position,double> ProjectedKinematics::intersection(const Position& so,
 		so3 = proj.project(so);
 		si3 = proj.project(si);
 	}
-	std::pair<Vect3,double> intersect = VectFuns::intersection(so3, vo, si3, vi);
+	std::pair<Vect3,double> intersect = VectFuns::intersection(so3,vo.vect3(),si3,vi.vect3());
 	if (so.isLatLon()) {
 		return std::pair<Position,double>(Position(proj.inverse(intersect.first)),intersect.second);
 	} else {
 		return std::pair<Position,double>(Position(intersect.first),intersect.second);
 	}
 }
-
 
 double ProjectedKinematics::timeOfintersection(const Position& so, const Velocity& vo, const Position& si, const Velocity& vi) {
 	Vect3 so3 = so.vect3();
@@ -283,15 +283,6 @@ double ProjectedKinematics::timeOfintersection(const Position& so, const Velocit
 	double  intersectTime = VectFuns::timeOfIntersection(so3, vo, si3, vi);
 	return intersectTime;
 }
-
-
-
-
-
-
-
-
-
 
 /** Wrapper around Kinematic.turnTimeDirecTo()
  * Returns a triple: end of turn point, velocity at that point, time at that point
@@ -362,7 +353,7 @@ Triple<Position,Velocity,double> ProjectedKinematics::vsLevelOutFinal(const Posi
 			sv = Projection::createProjection(so.lla().zeroAlt()).project(so, vo);
 		}
 		StateVector vat = Kinematics::vsLevelOutFinal(sv, climbRate, targetAlt, a);
-		if (vat.t() < 0) return Triple<Position,Velocity,double>(Position::INVALID(), Velocity::INVALIDV(), vat.t());
+		if (vat.t() < 0) return Triple<Position,Velocity,double>(Position::INVALID(), Velocity::INVALID(), vat.t());
 		if (so.isLatLon()) {
 			std::pair<Position,Velocity>p = Projection::createProjection(so.lla().zeroAlt()).inverse(vat.s(),vat.v(),true);
 			return Triple<Position,Velocity,double>(p.first, p.second, vat.t());

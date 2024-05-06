@@ -21,19 +21,26 @@ namespace larcfm {
 /*
  * Creates an empty object
  */
-HysteresisData::HysteresisData() {
-  hysteresis_time_ = 0;
-  persistence_time_ = 0;
+HysteresisData::HysteresisData():hysteresis_time_(0.0),persistence_time_(0.0),
+                                 init_time_(NaN),last_time_(NaN),last_value_(-1),outdated_(true) {}
+
+void HysteresisData::init() {
+  hysteresis_time_ = 0.0;
+  persistence_time_ = 0.0;
   init_time_ = NaN;
   last_time_ = NaN;
   last_value_ = -1;
   outdated_ = true;
 }
 
+bool HysteresisData::isValid() const {
+		return mofn_.isValid();
+}
+
 /*
  * Creates an object for given values of hysteresis, persistence time, and M of N parameters
  */
-HysteresisData::HysteresisData(double hysteresis_time, double persistence_time, int m, int n) {
+void HysteresisData::setHysteresisData(double hysteresis_time, double persistence_time, int m, int n) {
   mofn_.setMofN(m,n);
   hysteresis_time_ = hysteresis_time;
   persistence_time_ = persistence_time;
@@ -109,7 +116,7 @@ int HysteresisData::applyHysteresisLogic(int current_value, double current_time)
 }
 
 std::string HysteresisData::toString() const {
-  std::string s = "<";
+  std::string s("<");
   s += "hysteresis_time: "+FmPrecision(hysteresis_time_);
   s += ", persistence_time: "+FmPrecision(persistence_time_);
   s += ", init_time: "+FmPrecision(init_time_);

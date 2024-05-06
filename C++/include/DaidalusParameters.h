@@ -27,15 +27,16 @@ private:
   ErrorLog error;
 
   // Bands
-  double lookahead_time_;
-  double left_hdir_;
-  double right_hdir_;
-  double min_hs_;
-  double max_hs_;
-  double min_vs_;
-  double max_vs_;
-  double min_alt_;
-  double max_alt_;
+  double lookahead_time_; // [s] Lookahead time
+  double left_hdir_;      // Left horizontal direction [0 - pi]
+  double right_hdir_;     // Right horizontal direction [0 - pi]
+  double min_airspeed_;   // Minimum airspeed for calculation of horizontal direction bands
+  double min_hs_;         // Minimum horizontal speed
+  double max_hs_;         // Maximum horizontal speed
+  double min_vs_;         // Minimum vertical speed
+  double max_vs_;         // Maximum vertical speed
+  double min_alt_;        // Minimum altitude
+  double max_alt_;        // Maximum altitude
 
   // Relative bands
   // The following values specify above and below values for the computation of bands
@@ -109,10 +110,10 @@ private:
   /**
    * DTA Logic:
    * 0: Disabled
-   * 1: Enabled special DTA maneuver guidance. Horizontal recovery is fully enabled,
+   * 1: Enabled special DTA maneuver guidance. Horizontal recovery is enabled,
    * but vertical recovery blocks down resolutions when alert is higher than corrective.
    * -1: Enabled special DTA maneuver guidance. Horizontal recovery is disabled,
-   * vertical recovery blocks down resolutions when raw alert is higher than corrective.
+   * vertical recovery blocks down resolutions when alert is higher than corrective.
    * NOTE:
    * When DTA logic is enabled, DAIDALUS automatically switches to DTA alerter and to
    * special maneuver guidance, when aircraft enters DTA volume (depending on ownship- vs
@@ -124,6 +125,14 @@ private:
   double dta_radius_;
   double dta_height_;
   int dta_alerter_;
+
+	/**
+	 * Horizontal Direction Bands Logic When Below Min Airspeed: 
+	 * 0: Horizontal direction bands disabled when airspeed is below min_airspeed
+	 * 1: Instantaneous horizontal direction bands computed assuming min_airspeed 
+	 * -1; Kinematic horizontal direction bands computed assumming min_airspeed
+	 */
+	int hdir_bands_below_min_as_;
 
   // Alerting logic
   // When true, alerting logic is ownship-centric. Otherwise, it is intruder-centric.
@@ -205,6 +214,16 @@ public:
   double getRightHorizontalDirection() const;
 
   double getRightHorizontalDirection(const std::string& u) const;
+
+  /** 
+   * @return minimum airspeed speed in internal units [m/s].
+   */
+  double getMinAirSpeed() const;
+
+  /** 
+   * @return minimum air speed in specified units [u].    
+   */
+  double getMinAirSpeed(const std::string& u) const;
 
   double getMinHorizontalSpeed() const;
 
@@ -370,8 +389,28 @@ public:
 
   bool setRightHorizontalDirection(double val, const std::string& u);
 
+	/** 
+   * Set minimum air speed to value in internal units [m/s].
+   * Minimum air speed must be greater or equal than min horizontal speed.
+   */
+	bool setMinAirSpeed(double val);
+
+  /** 
+   * Set minimum air speed to value in specified units [u].
+   * Minimum air speed must be greater or equal than min horizontal speed.
+   */
+	bool setMinAirSpeed(double val, const std::string& u);
+    
+  /**
+   * Set minimum horizontal speed to value in internal units [m/s].
+   * Minimum horizontal speed must be non-negative.
+  */  
   bool setMinHorizontalSpeed(double val);
 
+  /**
+   * Set minimum horizontal speed to value in specified units.
+   * Minimum horizontal speed must be non-negative.
+  */
   bool setMinHorizontalSpeed(double val, const std::string& u);
 
   bool setMaxHorizontalSpeed(double val);
@@ -727,12 +766,12 @@ public:
   bool setHorizontalContourThreshold(double val, const std::string& u);
 
   /**
-   * DTA Logic:
+   * Get DTA Logic:
    * 0: Disabled
-   * 1: Enabled special DTA maneuver guidance. Horizontal recovery is fully enabled,
+   * 1: Enabled special DTA maneuver guidance. Horizontal recovery is enabled,
    * but vertical recovery blocks down resolutions when alert is higher than corrective.
    * -1: Enabled special DTA maneuver guidance. Horizontal recovery is disabled,
-   * vertical recovery blocks down resolutions when raw alert is higher than corrective.
+   * vertical recovery blocks down resolutions when alert is higher than corrective.
    * NOTE:
    * When DTA logic is enabled, DAIDALUS automatically switches to DTA alerter and to
    * special maneuver guidance, when aircraft enters DTA volume (depending on ownship- vs
@@ -741,12 +780,12 @@ public:
   int getDTALogic() const;
 
   /**
-   * DTA Logic:
+   * Set DTA Logic:
    * 0: Disabled
-   * 1: Enabled special DTA maneuver guidance. Horizontal recovery is fully enabled,
+   * 1: Enabled special DTA maneuver guidance. Horizontal recovery is enabled,
    * but vertical recovery blocks down resolutions when alert is higher than corrective.
    * -1: Enabled special DTA maneuver guidance. Horizontal recovery is disabled,
-   * vertical recovery blocks down resolutions when raw alert is higher than corrective.
+   * vertical recovery blocks down resolutions when alert is higher than corrective.
    * NOTE:
    * When DTA logic is enabled, DAIDALUS automatically switches to DTA alerter and to
    * special maneuver guidance, when aircraft enters DTA volume (depending on ownship- vs
@@ -828,6 +867,22 @@ public:
    * Set DAA Terminal Area (DTA) alerter
    */
   void setDTAAlerter(int alerter);
+
+  /**
+   * Get Horizontal Direction Bands Logic When Below Min Airspeed: 
+   * 0: Horizontal direction bands disabled when airspeed is below min_airspeed
+   * 1: Instantaneous horizontal direction bands computed assuming min_airspeed 
+   * -1; Kinematic horizontal direction bands computed assumming min_airspeed
+	*/
+  int getHorizontalDirBandsBelowMinAirspeed() const;
+
+  /**
+   * Set Horizontal Direction Bands Logic When Below Min Airspeed: 
+   * 0: Horizontal direction bands disabled when airspeed is below min_airspeed
+   * 1: Instantaneous horizontal direction bands computed assuming min_airspeed 
+   * -1; Kinematic horizontal direction bands computed assumming min_airspeed
+	*/
+  void setHorizontalDirBandsBelowMinAirspeed(int val);
 
   /**
    * Set alerting logic to the value indicated by ownship_centric.

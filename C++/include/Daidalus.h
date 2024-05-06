@@ -5,10 +5,9 @@
  * Rights Reserved.
  */
 
-#ifndef DAIDALUSBANDS_H_
-#define DAIDALUSBANDS_H_
+#ifndef DAIDALUS_H_
+#define DAIDALUS_H_
 
-#include "GenericStateBands.h"
 #include "DaidalusCore.h"
 #include "DaidalusAltBands.h"
 #include "DaidalusDirBands.h"
@@ -91,7 +90,7 @@ namespace larcfm {
  *
  */
 
-class Daidalus : public GenericStateBands, public ErrorReporter {
+class Daidalus : public ErrorReporter {
 
 private:
   mutable ErrorLog  error;
@@ -117,13 +116,13 @@ public:
   /**
    * Construct a Daidalus object with initial alerter.
    */
-  Daidalus(const Alerter& alerter);
+  explicit Daidalus(const Alerter& alerter);
 
   /**
    * Construct a Daidalus object with the default parameters and one alerter with the
    * given detector and T (in seconds) as the alerting time, early alerting time, and lookahead time.
    */
-  Daidalus(const Detection3D* det, double T);
+  Daidalus(const Detection3D& det, double T);
 
   /* Destructor */
   virtual ~Daidalus() {}
@@ -196,12 +195,22 @@ public:
    * @param id Ownship's identifier
    * @param pos Ownship's position
    * @param vel Ownship's ground velocity
+   * @param airvel Ownship's air velocity
+   * @param time Time stamp of ownship's state
+   */
+  void setOwnshipState(const std::string& id, const Position& pos, const Velocity& vel, const Velocity& airvel, double time);
+
+  /**
+   * Set ownship state and current time. Clear all traffic and assume previous wind.
+   * @param id Ownship's identifier
+   * @param pos Ownship's position
+   * @param vel Ownship's ground velocity
    * @param time Time stamp of ownship's state
    */
   void setOwnshipState(const std::string& id, const Position& pos, const Velocity& vel, double time);
 
   /**
-   * Set ownship state at time 0.0. Clear all traffic.
+   * Set ownship state at time 0.0. Clear all traffic and assume previous wind.
    * @param id Ownship's identifier
    * @param pos Ownship's position
    * @param vel Ownship's ground velocity
@@ -209,10 +218,12 @@ public:
   void setOwnshipState(const std::string& id, const Position& pos, const Velocity& vel);
 
   /**
-   * Add traffic state at given time.
+   * Add traffic state at given time. Assume previous wind.
    * If time is different from current time, traffic state is projected, past or future,
    * into current time. If it's the first aircraft, this aircraft is
-   * set as the ownship.
+   * set as the ownship. If a traffic state with the same id already exists,
+	 * the traffic state is overwritten. If id is ownship's, nothing is done and 
+	 * the value -1 is returned. 
    * @param id Aircraft's identifier
    * @param pos Aircraft's position
    * @param vel Aircraft's ground velocity
@@ -294,10 +305,35 @@ public:
 
   /* Wind Setting */
 
+	/**
+	 * Get ownship's heading in internal units [0-2PI]
+	 */
+	double getOwnshipHeading() const;
+
+  /**
+	 * Get ownship's heading in given units [0-2PI]
+	 */
+  double getOwnshipHeading(const std::string& units) const;
+  
+  /**
+	 * Get ownship's air speed in internal units [m/s]
+	 */
+	double getOwnshipAirSpeed() const;
+
+  /**
+	 * Get ownship's air apeed in given units 
+	 */
+	double getOwnshipAirSpeed(const std::string& units) const;
+
+  /**
+	 * Set ownship's air velocity. This method resets the wind setting and the air velocity of all traffic aircraft.
+	 */
+	void setOwnshipAirVelocity(double heading, double airspeed);
+  
   /**
    * Get wind velocity specified in the TO direction
    */
-  const Velocity& getWindVelocityTo() const;
+  Velocity getWindVelocityTo() const;
 
   /**
    * Get wind velocity specified in the From direction
@@ -306,15 +342,15 @@ public:
 
   /**
    * Set wind velocity specified in the TO direction
-   * @param wind_velocity: Wind velocity specified in TO direction
+   * @param windto: Wind velocity specified in TO direction
    */
-  void setWindVelocityTo(const Velocity& wind_vector);
+  void setWindVelocityTo(const Velocity& windto);
 
   /**
    * Set wind velocity specified in the From direction
-   * @param nwind_velocity: Wind velocity specified in From direction
+   * @param windfrom: Wind velocity specified in From direction
    */
-  void setWindVelocityFrom(const Velocity& nwind_vector);
+  void setWindVelocityFrom(const Velocity& windfrom);
 
   /**
    * Set no wind velocity
@@ -349,6 +385,11 @@ public:
    * Returns most severe alert level for a given aircraft. Returns 0 if either the aircraft or the alerter is undefined.
    */
   int mostSevereAlertLevel(int ac_idx);
+
+	/**
+	 * Returns true if ownship is in confict with respect the corrective volume with any traffic aircraft.
+	 */
+	bool inCorrectiveConflict();
 
   /* SUM Setting */
 
@@ -418,12 +459,12 @@ public:
   /**
    * @return strategy for computing most urgent aircraft.
    */
-  const UrgencyStrategy* getUrgencyStrategy() const;
+  const UrgencyStrategy& getUrgencyStrategy() const;
 
   /**
    * Set strategy for computing most urgent aircraft.
    */
-  void setUrgencyStrategy(const UrgencyStrategy* strat);
+  void setUrgencyStrategy(const UrgencyStrategy& strat);
 
   /**
    * @return most urgent aircraft.
@@ -508,7 +549,7 @@ public:
   /**
    * Return index of alerter with a given name. Return 0 if it doesn't exist
    */
-  int getAlerterIndex(std::string id) const;
+  int getAlerterIndex(const std::string& id) const;
 
   /**
    * Clear all alert thresholds
@@ -551,6 +592,16 @@ public:
    */
   double getRightHorizontalDirection(const std::string& u) const;
 
+  /** 
+   * @return minimum airspeed speed in internal units [m/s]. 
+   */
+  double getMinAirSpeed() const;
+
+  /** 
+   * @return minimum air speed in specified units [u].    
+   */
+  double getMinAirSpeed(const std::string& u) const;
+  
   /**
    * @return minimum horizontal speed for horizontal speed bands in internal units [m/s].
    */
@@ -773,7 +824,7 @@ public:
   /**
    * @return the vertical climb/descend rate for altitude bands in specified units [u].
    */
-  double getVerticalRate(std::string u) const;
+  double getVerticalRate(const std::string& u) const;
 
   /**
    * @return horizontal NMAC distance in internal units [m].
@@ -947,13 +998,27 @@ public:
    */
   void setRightHorizontalDirection(double val, const std::string& u);
 
+	/** 
+   * Set minimum air speed to value in internal units [m/s].
+   * Minimum air speed must be greater or equal than min horizontal speed.
+   */
+	void setMinAirSpeed(double val);
+
+  /** 
+   * Set minimum air speed to value in specified units [u].
+   * Minimum air speed must be greater or equal than min horizontal speed.
+   */
+	void setMinAirSpeed(double val, const std::string& u);
+  
   /**
    * Sets minimum horizontal speed for horizontal speed bands to value in internal units [m/s].
+   * Minimum horizontal speed must be non-negative.
    */
   void setMinHorizontalSpeed(double val);
 
   /**
    * Sets minimum horizontal speed for horizontal speed bands to value in specified units [u].
+   * Minimum horizontal speed must be non-negative.
    */
   void setMinHorizontalSpeed(double val, const std::string& u);
 
@@ -1017,7 +1082,7 @@ public:
    * Set horizontal speed in given units (below current value) for the
    * computation of relative bands
    */
-  void setBelowRelativeHorizontalSpeed(double val,std::string u);
+  void setBelowRelativeHorizontalSpeed(double val,const std::string& u);
 
   /**
    * Set horizontal speed in internal units (above current value) for the
@@ -1515,7 +1580,7 @@ public:
   /**
    * @return Distance (in given units) at which h_vel_z_score scales from min to max as range decreases
    */
-  double getHorizontalVelocityZDistance(std::string u) const;
+  double getHorizontalVelocityZDistance(const std::string& u) const;
 
   /**
    * @return Set distance (in internal units) at which h_vel_z_score scales from min to max as range decreases
@@ -1559,7 +1624,7 @@ public:
    * the left/right of current aircraft direction. A value of 0 means only conflict contours.
    * A value of pi means all contours.
    */
-  double getHorizontalContourThreshold(std::string u) const;
+  double getHorizontalContourThreshold(const std::string& u) const;
 
   /**
    * Set horizontal contour threshold, specified in internal units [rad] [0 - pi] as an angle to
@@ -1592,7 +1657,7 @@ public:
 
   /**
    * Return true if DAA Terminal Area (DTA) logic is enabled with horizontal
-   * direction recovery guidance. If true, horizontal direction recovery is fully enabled,
+   * direction recovery guidance. If true, horizontal direction recovery is enabled,
    * but vertical recovery blocks down resolutions when alert is higher than corrective.
    * NOTE:
    * When DTA logic is enabled, DAIDALUS automatically switches to DTA alerter and to
@@ -1619,7 +1684,7 @@ public:
 
   /**
    * Enable DAA Terminal Area (DTA) logic with horizontal direction recovery guidance, i.e.,
-   * horizontal direction recovery is fully enabled, but vertical recovery blocks down
+   * horizontal direction recovery is enabled, but vertical recovery blocks down
    * resolutions when alert is higher than corrective.
    * NOTE:
    * When DTA logic is enabled, DAIDALUS automatically switches to DTA alerter and to
@@ -1713,6 +1778,22 @@ public:
    * Set DAA Terminal Area (DTA) alerter
    */
   void setDTAAlerter(int alerter);
+
+  /**
+   * Get Horizontal Direction Bands Logic When Below Min Airspeed: 
+   * 0: Horizontal direction bands disabled when airspeed is below min_airspeed
+   * 1: Instantaneous horizontal direction bands computed assuming min_airspeed 
+   * -1; Kinematic horizontal direction bands computed assumming min_airspeed
+	*/
+  int getHorizontalDirBandsBelowMinAirspeed() const;
+
+  /**
+   * Set Horizontal Direction Bands Logic When Below Min Airspeed: 
+   * 0: Horizontal direction bands disabled when airspeed is below min_airspeed
+   * 1: Instantaneous horizontal direction bands computed assuming min_airspeed 
+   * -1; Kinematic horizontal direction bands computed assumming min_airspeed
+	*/
+  void setHorizontalDirBandsBelowMinAirspeed(int val);
 
   /**
    * Set alerting logic to the value indicated by ownship_centric.
@@ -2510,7 +2591,7 @@ public:
 
   /**
    * Return the most severe alert level with respect to all traffic aircraft
-   * The number 0 means no alert. A negative number means no traffic aircraft
+   * Return 0 if no alert. Return -1 if ownship has not been set 
    */
   int alertLevelAllTraffic();
 
@@ -2717,7 +2798,7 @@ public:
 
   /* Input/Output methods */
 
-  std::string outputStringAircraftStates() const;
+  std::string outputStringAircraftStates(bool header=true) const;
 
   std::string rawString() const;
 
@@ -2754,60 +2835,6 @@ public:
   std::string getMessageNoClear() const;
 
   // Deprecate interface methods
-
-  /**
-  @Deprecated
-   * Use setOwnshipState instead.
-   * Set ownship state at time 0.0. Clear all traffic.
-   * @param id Ownship's identified
-   * @param pos Ownship's position
-   * @param vel Ownship's ground velocity
-   */
-  virtual void setOwnship(const std::string& id, const Position& pos, const Velocity& vel) {
-    setOwnshipState(id,pos,vel);
-  }
-
-  /**
-  @Deprecated
-   * Use setOwnshipState instead.
-   * Set ownship state at time 0.0. Clear all traffic. Name of ownship will be "Ownship"
-   * @param pos Ownship's position
-   * @param vel Ownship's ground velocity
-   */
-  virtual void setOwnship(const Position& pos, const Velocity& vel) {
-    setOwnship("Ownship",pos,vel);
-  }
-
-  /**
-  @Deprecated
-   * Add traffic state at current time. If it's the first aircraft, this aircraft is
-   * set as the ownship.
-   * @param id Aircraft's identifier
-   * @param pos Aircraft's position
-   * @param vel Aircraft's ground velocity
-   * Same function as addTrafficState, but it doesn't return index of added traffic. This is neeeded
-   * for compatibility with GenericBands
-   */
-  void addTraffic(const std::string& id, const Position& pos, const Velocity& vel) {
-    addTrafficState(id,pos,vel);
-  }
-
-  /**
-  @Deprecated
-   * Use addTrafficState instead
-   * Add traffic state at current time. If it's the first aircraft, this aircraft is
-   * set as the ownship. Name of aircraft is AC_n, where n is the index of the aicraft
-   * @param pos Aircraft's position
-   * @param vel Aircraft's ground velocity
-   * Same function as addTrafficState, but it doesn't return index of added traffic.
-   */
-  void addTraffic(const Position& pos, const Velocity& vel) {
-    if (!hasOwnship()) {
-      setOwnship(pos,vel);
-    } else {
-      addTrafficState("AC_"+Fmi(core_.traffic.size()+1),pos,vel);
-    }
-  }
 
   /**
     @Deprecated

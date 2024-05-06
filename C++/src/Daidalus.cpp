@@ -101,7 +101,7 @@ Daidalus::Daidalus(const Alerter& alerter) : error("Daidalus"), core_(alerter) {
  * Construct a Daidalus object with the default parameters and one alerter with the
  * given detector and T (in seconds) as the alerting time, early alerting time, and lookahead time.
  */
-Daidalus::Daidalus(const Detection3D* det, double T) : error("Daidalus"), core_(det,T) {}
+Daidalus::Daidalus(const Detection3D& det, double T) : error("Daidalus"), core_(det,T) {}
 
 /* Setting for WC Definitions RTCA DO-365 */
 
@@ -260,22 +260,35 @@ const TrafficState& Daidalus::getAircraftStateAt(int idx) const {
  * @param id Ownship's identifier
  * @param pos Ownship's position
  * @param vel Ownship's ground velocity
+ * @param airvel Ownship's air velocity
  * @param time Time stamp of ownship's state
  */
-void Daidalus::setOwnshipState(const std::string& id, const Position& pos, const Velocity& vel, double time) {
+void Daidalus::setOwnshipState(const std::string& id, const Position& pos, const Velocity& vel, const Velocity& airvel, double time) {
   if (!hasOwnship() || !equals(core_.ownship.getId(),id) ||
       time < getCurrentTime() ||
       time-getCurrentTime() > getHysteresisTime()) {
     // Full reset (including hysteresis) if adding a different ownship or time is
     // in the past. Note that wind is not clear.
     clearHysteresis();
-    core_.set_ownship_state(id,pos,vel,time);
+    core_.set_ownship_state(id,pos,vel,airvel,time);
   } else {
     // Otherwise, reset cache values but keeps hysteresis.
-    core_.set_ownship_state(id,pos,vel,time);
+    core_.set_ownship_state(id,pos,vel,airvel,time);
     stale_bands();
   }
 }
+
+/**
+  * Set ownship state and current time. Clear all traffic and assume previous wind.
+  * @param id Ownship's identifier
+  * @param pos Ownship's position
+  * @param vel Ownship's ground velocity
+  * @param time Time stamp of ownship's state
+  */
+void Daidalus::setOwnshipState(const std::string& id, const Position& pos, const Velocity& vel, double time) {
+  setOwnshipState(id,pos,vel,vel.Sub(core_.wind_vector),time);
+}
+
 
 /**
  * Set ownship state at time 0.0. Clear all traffic.
@@ -288,10 +301,12 @@ void Daidalus::setOwnshipState(const std::string& id, const Position& pos, const
 }
 
 /**
- * Add traffic state at given time.
+ * Add traffic state at given time. Assume previous wind.
  * If time is different from current time, traffic state is projected, past or future,
  * into current time. If it's the first aircraft, this aircraft is
- * set as the ownship.
+ * set as the ownship. If a traffic state with the same id already exists,
+ * the traffic state is overwritten. If id is ownship's, nothing is done and 
+ * the value -1 is returned. 
  * @param id Aircraft's identifier
  * @param pos Aircraft's position
  * @param vel Aircraft's ground velocity
@@ -438,34 +453,70 @@ double Daidalus::getCurrentTime(const std::string& u) const {
 /* Wind Setting */
 
 /**
+	* Get ownship's heading in internal units [0-2PI]
+	*/
+double Daidalus::getOwnshipHeading() const {
+  return core_.ownship.horizontalDirection();
+}
+
+/**
+	* Get ownship's heading in given units [0-2PI]
+	*/
+double Daidalus::getOwnshipHeading(const std::string& units) const {
+  return core_.ownship.horizontalDirection(units);
+}
+  
+/**
+	* Get ownship's air speed in internal units [m/s]
+	*/
+double Daidalus::getOwnshipAirSpeed() const {
+  return core_.ownship.horizontalSpeed();
+}
+
+/**
+	* Get ownship's air apeed in given units 
+	*/
+double Daidalus::getOwnshipAirSpeed(const std::string& units) const {
+  return core_.ownship.horizontalSpeed(units);
+}
+
+/**
+	* Set ownship's air velocity. This method resets the wind setting and the air velocity of all traffic aircraft.
+	*/
+void Daidalus::setOwnshipAirVelocity(double heading, double airspeed) {
+	core_.set_ownship_airvelocity(heading,airspeed);
+	stale_bands();
+}
+
+/**
  * Get wind velocity specified in the TO direction
  */
-const Velocity& Daidalus::getWindVelocityTo() const {
-  return core_.wind_vector;
+Velocity Daidalus::getWindVelocityTo() const {
+  return Velocity::make(core_.wind_vector);
 }
 
 /**
  * Get wind velocity specified in the From direction
  */
 Velocity Daidalus::getWindVelocityFrom() const {
-  return core_.wind_vector.NegV();
+  return Velocity::make(core_.wind_vector.Neg());
 }
 
 /**
  * Set wind velocity specified in the TO direction
- * @param wind_velocity: Wind velocity specified in TO direction
+ * @param windto: Wind velocity specified in TO direction
  */
-void Daidalus::setWindVelocityTo(const Velocity& wind_vector) {
-  core_.set_wind_velocity(wind_vector);
+void Daidalus::setWindVelocityTo(const Velocity& windto) {
+  core_.set_wind_velocity(windto.vect3());
   stale_bands();
 }
 
 /**
  * Set wind velocity specified in the From direction
- * @param nwind_velocity: Wind velocity specified in From direction
+ * @param windfrom: Wind velocity specified in From direction
  */
-void Daidalus::setWindVelocityFrom(const Velocity& nwind_vector) {
-  setWindVelocityTo(nwind_vector.NegV());
+void Daidalus::setWindVelocityFrom(const Velocity& windfrom) {
+  setWindVelocityTo(windfrom.Neg());
 }
 
 /**
@@ -657,17 +708,16 @@ void Daidalus::resetUncertainty(int ac_idx) {
 /**
  * @return strategy for computing most urgent aircraft.
  */
-const UrgencyStrategy* Daidalus::getUrgencyStrategy() const {
-  return core_.get_urgency_strategy();
+const UrgencyStrategy& Daidalus::getUrgencyStrategy() const {
+  return *core_.urgency_strategy;
 }
 
 /**
  * Set strategy for computing most urgent aircraft.
  */
-void Daidalus::setUrgencyStrategy(const UrgencyStrategy* strat) {
-  if (core_.set_urgency_strategy(strat)) {
-    stale_bands();
-  }
+void Daidalus::setUrgencyStrategy(const UrgencyStrategy& strat) {
+  core_.urgency_strategy.reset(strat.copy());
+  reset();
 }
 
 /**
@@ -799,7 +849,7 @@ const Alerter& Daidalus::getAlerterAt(int i) const {
 /**
  * Return index of alerter with a given name. Return 0 if it doesn't exist
  */
-int Daidalus::getAlerterIndex(std::string id) const {
+int Daidalus::getAlerterIndex(const std::string& id) const {
   return core_.parameters.getAlerterIndex(id);
 }
 
@@ -860,6 +910,20 @@ double Daidalus::getRightHorizontalDirection() const {
  */
 double Daidalus::getRightHorizontalDirection(const std::string& u) const {
   return Units::to(u,getRightHorizontalDirection());
+}
+
+/** 
+ * @return minimum airspeed speed in internal units [m/s]. 
+ */
+double Daidalus::getMinAirSpeed() const {
+	return core_.parameters.getMinAirSpeed();
+}
+
+/** 
+ * @return minimum air speed in specified units [u]. 
+ */
+double Daidalus::getMinAirSpeed(const std::string& u) const {
+		return Units::to(u,getMinAirSpeed());
 }
 
 /**
@@ -1166,7 +1230,7 @@ double Daidalus::getVerticalRate() const {
 /**
  * @return the vertical climb/descend rate for altitude bands in specified units [u].
  */
-double Daidalus::getVerticalRate(std::string u) const {
+double Daidalus::getVerticalRate(const std::string& u) const {
   return core_.parameters.getVerticalRate(u);
 }
 
@@ -1417,8 +1481,27 @@ void Daidalus::setRightHorizontalDirection(double val, const std::string& u) {
   reset();
 }
 
+/** 
+ * Set minimum air speed to value in internal units [m/s].
+ * Minimum air speed must be greater or equal than min horizontal speed.
+ */
+void Daidalus::setMinAirSpeed(double val) {
+	core_.parameters.setMinAirSpeed(val);
+	reset();
+}
+
+/** 
+ * Set minimum air speed to value in specified units [u].
+ * Minimum air speed must be greater or equal than min horizontal speed.
+ */
+void Daidalus::setMinAirSpeed(double val, const std::string& u) {
+	core_.parameters.setMinAirSpeed(val,u);
+	reset();
+}
+
 /**
- * Sets minimum horizontal speed for horizontal speed bands to value in internal units [m/s].
+ * Set minimum horizontal speed to value in internal units [m/s].
+ * Minimum horizontal speed must be non-negative.
  */
 void Daidalus::setMinHorizontalSpeed(double val) {
   core_.parameters.setMinHorizontalSpeed(val);
@@ -1426,7 +1509,8 @@ void Daidalus::setMinHorizontalSpeed(double val) {
 }
 
 /**
- * Sets minimum horizontal speed for horizontal speed bands to value in specified units [u].
+ * Set minimum horizontal speed to value in specified units.
+ * Minimum horizontal speed must be non-negative.
  */
 void Daidalus::setMinHorizontalSpeed(double val, const std::string& u) {
   core_.parameters.setMinHorizontalSpeed(val,u);
@@ -1526,7 +1610,7 @@ void Daidalus::setBelowRelativeHorizontalSpeed(double val) {
  * Set horizontal speed in given units (below current value) for the
  * computation of relative bands
  */
-void Daidalus::setBelowRelativeHorizontalSpeed(double val,std::string u) {
+void Daidalus::setBelowRelativeHorizontalSpeed(double val,const std::string& u) {
   core_.parameters.setBelowRelativeHorizontalSpeed(val,u);
   reset();
 }
@@ -2286,7 +2370,7 @@ double Daidalus::getHorizontalVelocityZDistance() const {
 /**
  * @return Distance (in given units) at which h_vel_z_score scales from min to max as range decreases
  */
-double Daidalus::getHorizontalVelocityZDistance(std::string u) const {
+double Daidalus::getHorizontalVelocityZDistance(const std::string& u) const {
   return core_.parameters.getHorizontalVelocityZDistance(u);
 }
 
@@ -2350,7 +2434,7 @@ double Daidalus::getHorizontalContourThreshold() const {
  * the left/right of current aircraft direction. A value of 0 means only conflict contours.
  * A value of pi means all contours.
  */
-double Daidalus::getHorizontalContourThreshold(std::string u) const {
+double Daidalus::getHorizontalContourThreshold(const std::string& u) const {
   return core_.parameters.getHorizontalContourThreshold(u);
 }
 
@@ -2376,14 +2460,14 @@ void Daidalus::setHorizontalContourThreshold(double val, const std::string& u) {
  * Return true if DTA logic is active at current time
  */
 bool Daidalus::isActiveDTALogic() {
-  return core_.DTAStatus() != 0;
+  return core_.getSpecialBandFlags().get_dta_status() != 0;
 }
 
 /**
  * Return true if DTA special maneuver guidance is active at current time
  */
 bool Daidalus::isActiveDTASpecialManeuverGuidance() {
-  return core_.DTAStatus() > 0;
+  return core_.getSpecialBandFlags().get_dta_status() > 0;
 }
 
 /**
@@ -2395,7 +2479,7 @@ bool Daidalus::isDisabledDTALogic() const {
 
 /**
  * Return true if DAA Terminal Area (DTA) logic is enabled with horizontal
- * direction recovery guidance. If true, horizontal direction recovery is fully enabled,
+ * direction recovery guidance. If true, horizontal direction recovery is enabled,
  * but vertical recovery blocks down resolutions when alert is higher than corrective.
  * NOTE:
  * When DTA logic is enabled, DAIDALUS automatically switches to DTA alerter and to
@@ -2429,7 +2513,7 @@ void Daidalus::disableDTALogic() {
 
 /**
  * Enable DAA Terminal Area (DTA) logic with horizontal direction recovery guidance, i.e.,
- * horizontal direction recovery is fully enabled, but vertical recovery blocks down
+ * horizontal direction recovery is enabled, but vertical recovery blocks down
  * resolutions when alert is higher than corrective.
  * NOTE:
  * When DTA logic is enabled, DAIDALUS automatically switches to DTA alerter and to
@@ -2566,6 +2650,27 @@ int Daidalus::getDTAAlerter() const {
 void Daidalus::setDTAAlerter(int alerter) {
   core_.parameters.setDTAAlerter(alerter);
   reset();
+}
+
+/**
+ * Get Horizontal Direction Bands Logic When Below Min Airspeed: 
+ * 0: Horizontal direction bands disabled when airspeed is below min_airspeed
+ * 1: Instantaneous horizontal direction bands computed assuming min_airspeed 
+ * -1; Kinematic horizontal direction bands computed assumming min_airspeed
+*/
+int Daidalus::getHorizontalDirBandsBelowMinAirspeed() const {
+  return core_.parameters.getHorizontalDirBandsBelowMinAirspeed();
+}
+
+/**
+ * Set Horizontal Direction Bands Logic When Below Min Airspeed: 
+ * 0: Horizontal direction bands disabled when airspeed is below min_airspeed
+ * 1: Instantaneous horizontal direction bands computed assuming min_airspeed 
+ * -1; Kinematic horizontal direction bands computed assumming min_airspeed
+*/
+void Daidalus::setHorizontalDirBandsBelowMinAirspeed(int val) {
+ 	core_.parameters.setHorizontalDirBandsBelowMinAirspeed(val);
+	reset(); 
 }
 
 /**
@@ -3700,10 +3805,13 @@ int Daidalus::alertLevel(int ac_idx) {
 
 /**
  * Return the most severe alert level with respect to all traffic aircraft
- * The number 0 means no alert. A negative number means no traffic aircraft
+ * Return 0 if no alert. Return -1 if ownship has not been set
  */
 int Daidalus::alertLevelAllTraffic() {
-  int max = -1;
+  if (!hasOwnship()) {
+    return -1;
+  }
+  int max = 0;
   for (int ac_idx=1; ac_idx <= lastTrafficIndex(); ++ac_idx) {
     int alert = alertLevel(ac_idx);
     if (alert > max) {
@@ -3711,6 +3819,19 @@ int Daidalus::alertLevelAllTraffic() {
     }
   }
   return max;
+}
+
+/**
+ * Return true if ownship is in confict with respect the corrective volume with any traffic aircraft.
+ */
+bool Daidalus::inCorrectiveConflict() {
+  for (int ac_idx=1; ac_idx <= lastTrafficIndex(); ++ac_idx) {
+    int alert = alertLevel(ac_idx);
+    if (alert > 0 && alert >= alertLevelOfRegion(ac_idx,getCorrectiveRegion())) {
+      return true;
+    }
+  }
+  return false;
 }
 
 /**
@@ -3732,9 +3853,9 @@ ConflictData Daidalus::violationOfAlertThresholds(int ac_idx, int alert_level) {
         alert_level = core_.parameters.correctiveAlertLevel(alerter_idx);
       }
       if (alert_level > 0) {
-        Detection3D* detector = alerter.getDetectorPtr(alert_level);
-        if (detector != NULL) {
-          return detector->conflictDetectionWithTrafficState(core_.ownship,intruder,0.0,core_.parameters.getLookaheadTime());
+        const Detection3D& detector = alerter.getDetector(alert_level);
+        if (detector.isValid()) {
+          return detector.conflictDetectionWithTrafficState(core_.ownship,intruder,0.0,core_.parameters.getLookaheadTime());
         } else {
           error.addError("violationOfAlertThresholds: detector of traffic aircraft "+Fmi(ac_idx)+" is not set");
         }
@@ -3885,7 +4006,7 @@ double Daidalus::currentHorizontalSeparation(int ac_idx,const std::string& u) co
  */
 double Daidalus::currentVerticalSeparation(int ac_idx) const {
   if (1 <= ac_idx && ac_idx <= lastTrafficIndex()) {
-    double  sz = core_.ownship.get_s().z - core_.traffic[ac_idx-1].get_s().z;
+    double  sz = core_.ownship.get_s().z() - core_.traffic[ac_idx-1].get_s().z();
     return std::abs(sz);
   } else {
     return NaN;
@@ -3910,8 +4031,8 @@ double Daidalus::currentVerticalSeparation(int ac_idx,const std::string& u) cons
  */
 double Daidalus::horizontalClosureRate(int ac_idx) const {
   if (1 <= ac_idx && ac_idx <= lastTrafficIndex()) {
-    Vect3 v = core_.ownship.get_v()-core_.traffic[ac_idx-1].get_v();
-    return v.norm2D();
+    Vect2 v = core_.ownship.get_v().vect2().Sub(core_.traffic[ac_idx-1].get_v().vect2());
+    return v.norm();
   } else {
     return NaN;
   }
@@ -3935,7 +4056,7 @@ double Daidalus::horizontalClosureRate(int ac_idx,const std::string& u) const {
  */
 double Daidalus::verticalClosureRate(int ac_idx) const {
   if (1 <= ac_idx && ac_idx <= lastTrafficIndex()) {
-    double  vz = core_.ownship.get_v().z - core_.traffic[ac_idx-1].get_v().z;
+    double  vz = core_.ownship.get_v().z() - core_.traffic[ac_idx-1].get_v().z();
     return std::abs(vz);
   } else {
     return NaN;
@@ -3960,9 +4081,9 @@ double Daidalus::verticalClosureRate(int ac_idx,const std::string& u) const {
  */
 double Daidalus::predictedHorizontalMissDistance(int ac_idx) const {
   if (1 <= ac_idx && ac_idx <= lastTrafficIndex()) {
-    Vect3 s = core_.ownship.get_s()-core_.traffic[ac_idx-1].get_s();
-    Vect3 v = core_.ownship.get_v()-core_.traffic[ac_idx-1].get_v();
-    return Horizontal::hmd(s.vect2(),v.vect2(),getLookaheadTime());
+    Vect2 s = core_.ownship.get_s().vect2()-core_.traffic[ac_idx-1].get_s().vect2();
+    Vect2 v = core_.ownship.get_v().vect2()-core_.traffic[ac_idx-1].get_v().vect2();
+    return Horizontal::hmd(s,v,getLookaheadTime());
   } else {
     return NaN;
   }
@@ -3985,9 +4106,9 @@ double Daidalus::predictedHorizontalMissDistance(int ac_idx, const std::string& 
  */
 double Daidalus::predictedVerticalMissDistance(int ac_idx) const {
   if (1 <= ac_idx && ac_idx <= lastTrafficIndex()) {
-    Vect3 s = core_.ownship.get_s()-core_.traffic[ac_idx-1].get_s();
-    Vect3 v = core_.ownship.get_v()-core_.traffic[ac_idx-1].get_v();
-    return Vertical::vmd(s.z,v.z,getLookaheadTime());
+		double sz = core_.ownship.get_s().z() - core_.traffic[ac_idx-1].get_s().z();
+		double vz = core_.ownship.get_v().z() - core_.traffic[ac_idx-1].get_v().z();
+		return Vertical::vmd(sz,vz,getLookaheadTime());    
   } else {
     return NaN;
   }
@@ -4013,9 +4134,9 @@ double Daidalus::predictedVerticalMissDistance(int ac_idx, const std::string& u)
  */
 double Daidalus::timeToHorizontalClosestPointOfApproach(int ac_idx) const {
   if (1 <= ac_idx && ac_idx <= lastTrafficIndex()) {
-    Vect3 s = core_.ownship.get_s()-core_.traffic[ac_idx-1].get_s();
-    Vect3 v = core_.ownship.get_v()-core_.traffic[ac_idx-1].get_v();
-    return Util::max(0.0,Horizontal::tcpa(s.vect2(),v.vect2()));
+    Vect2 s = core_.ownship.get_s().vect2()-core_.traffic[ac_idx-1].get_s().vect2();
+    Vect2 v = core_.ownship.get_v().vect2()-core_.traffic[ac_idx-1].get_v().vect2();
+    return Util::max(0.0,Horizontal::tcpa(s,v));
   } else {
     return NaN;
   }
@@ -4044,13 +4165,13 @@ double Daidalus::timeToHorizontalClosestPointOfApproach(int ac_idx, const std::s
  */
 double Daidalus::distanceAtHorizontalClosestPointOfApproach(int ac_idx) const {
   if (1 <= ac_idx && ac_idx <= lastTrafficIndex()) {
-    Vect3 s = core_.ownship.get_s()-core_.traffic[ac_idx-1].get_s();
-    Vect3 v = core_.ownship.get_v()-core_.traffic[ac_idx-1].get_v();
-    double tcpa = Horizontal::tcpa(s.vect2(),v.vect2());
+    Vect2 s = core_.ownship.get_s().vect2()-core_.traffic[ac_idx-1].get_s().vect2();
+    Vect2 v = core_.ownship.get_v().vect2()-core_.traffic[ac_idx-1].get_v().vect2();
+    double tcpa = Horizontal::tcpa(s,v);
     if (tcpa <= 0) {
-      return s.norm2D();
+      return s.norm();
     } else {
-      return s.AddScal(tcpa,v).norm2D();
+      return s.AddScal(tcpa,v).norm();
     }
   } else {
     return NaN;
@@ -4080,8 +4201,8 @@ double Daidalus::distanceAtHorizontalClosestPointOfApproach(int ac_idx, const st
  */
 double Daidalus::timeToCoAltitude(int ac_idx) const {
   if (1 <= ac_idx && ac_idx <= lastTrafficIndex()) {
-    double sz = core_.ownship.get_s().z-core_.traffic[ac_idx-1].get_s().z;
-    double vz = core_.ownship.get_v().z-core_.traffic[ac_idx-1].get_v().z;
+    double sz = core_.ownship.get_s().z() - core_.traffic[ac_idx-1].get_s().z();
+    double vz = core_.ownship.get_v().z() - core_.traffic[ac_idx-1].get_v().z();
     if (Util::almost_equals(vz,0.0)) {
       return NINFINITY;
     }
@@ -4114,8 +4235,8 @@ double Daidalus::timeToCoAltitude(int ac_idx, const std::string& u) const {
  */
 double Daidalus::modifiedTau(int ac_idx, double DMOD) const {
   if (1 <= ac_idx && ac_idx <= lastTrafficIndex()) {
-    Vect2 s = (core_.ownship.get_s()-core_.traffic[ac_idx-1].get_s()).vect2();
-    Vect2 v = (core_.ownship.get_v()-core_.traffic[ac_idx-1].get_v()).vect2();
+    Vect2 s = core_.ownship.get_s().vect2()-core_.traffic[ac_idx-1].get_s().vect2();
+    Vect2 v = core_.ownship.get_v().vect2()-core_.traffic[ac_idx-1].get_v().vect2();
     double sdotv = s.dot(v);
     double dmod2 = Util::sq(DMOD)-s.sqv();
     if (dmod2 < 0 && sdotv < 0) {
@@ -4144,8 +4265,8 @@ double Daidalus::modifiedTau(int ac_idx, double DMOD, const std::string& DMODu, 
 
 /* Input/Output methods */
 
-std::string Daidalus::outputStringAircraftStates() const {
-  return core_.outputStringAircraftStates(false);
+std::string Daidalus::outputStringAircraftStates(bool header) const {
+  return core_.outputStringAircraftStates(false,header);
 }
 
 std::string Daidalus::rawString() const {

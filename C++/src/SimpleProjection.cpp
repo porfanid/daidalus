@@ -13,7 +13,6 @@
 #include "SimpleProjection.h"
 #include "LatLonAlt.h"
 #include "GreatCircle.h"
-//#include "UnitSymbols.h"
 #include "Util.h"
 #include "Constants.h"
 #include "format.h"
@@ -30,23 +29,23 @@ namespace larcfm {
     static const double tranLat = Units::from("deg", 85.0);
     
     
-    SimpleProjection::SimpleProjection() {
-      projLat = projLon = projAlt = projNorth = 0.0;
-    }
+    SimpleProjection::SimpleProjection() :
+      projLat(0.0),
+      projLon(0.0),
+      projAlt(0.0),
+      projNorth(false) {}
     
-    SimpleProjection::SimpleProjection(const LatLonAlt& lla) {
-        projLat = lla.lat();
-        projLon = lla.lon();
-        projAlt = lla.alt();
-        projNorth = projLat >= 0.0;
-    }
+    SimpleProjection::SimpleProjection(const LatLonAlt& lla) :
+        projLat(lla.lat()),
+        projLon(lla.lon()),
+        projAlt(lla.alt()),
+        projNorth(projLat >= 0.0) {}
     
-    SimpleProjection::SimpleProjection(double lat, double lon, double alt) {
-        projLat = lat;
-        projLon = lon;
-        projAlt = alt;
-        projNorth = projLat >= 0.0;
-    }
+    SimpleProjection::SimpleProjection(double lat, double lon, double alt) :
+        projLat(lat),
+        projLon(lon),
+        projAlt(alt),
+        projNorth(projLat >= 0.0) {}
     
     SimpleProjection SimpleProjection::makeNew(const LatLonAlt& lla) const {
       return SimpleProjection(lla);
@@ -166,7 +165,7 @@ namespace larcfm {
     }
 
     LatLonAlt SimpleProjection::inverse(const Vect3& xyz) const {  
-    	return inverse(xyz.vect2(), xyz.z);
+    	return inverse(xyz.vect2(), xyz.z());
     }
     
   Velocity SimpleProjection::projectVelocity(const LatLonAlt& lla, const Velocity& v) const {
@@ -192,7 +191,7 @@ namespace larcfm {
   Velocity SimpleProjection::inverseVelocity(const Vect3& s, const Velocity& v, bool toLatLon) const {
     if (toLatLon) {
       double timeStep = 10.0;
-      Vect3 s2 = s.linear(v,timeStep);
+      Vect3 s2 = s.linear(v.vect3(),timeStep);
       LatLonAlt lla1 = inverse(s);
       LatLonAlt lla2 = inverse(s2);
       Velocity nv = GreatCircle::velocity_initial(lla1,lla2,timeStep);

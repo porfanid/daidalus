@@ -22,7 +22,7 @@ DaidalusHsBands::DaidalusHsBands() {}
 
 DaidalusHsBands::DaidalusHsBands(const DaidalusHsBands& b) : DaidalusRealBands(b) {}
 
-bool DaidalusHsBands::get_recovery(const DaidalusParameters& parameters) const {
+bool DaidalusHsBands::do_recovery(const DaidalusParameters& parameters) const {
   return parameters.isEnabledRecoveryHorizontalSpeedBands();
 }
 
@@ -47,7 +47,7 @@ double DaidalusHsBands::get_max_rel(const DaidalusParameters& parameters) const{
 }
 
 bool DaidalusHsBands::instantaneous_bands(const DaidalusParameters& parameters) const {
-  return parameters.getHorizontalAcceleration() == 0;
+  return parameters.getHorizontalAcceleration() == 0.0;
 }
 
 double DaidalusHsBands::own_val(const TrafficState& ownship) const {
@@ -55,13 +55,14 @@ double DaidalusHsBands::own_val(const TrafficState& ownship) const {
 }
 
 double DaidalusHsBands::time_step(const DaidalusParameters& parameters, const TrafficState& ownship) const {
-  return get_step(parameters)/parameters.getHorizontalAcceleration();
+  // This function is never called when horizontal acceleration is zero
+  return parameters.getHorizontalAcceleration() == 0.0 ? 0.0 : get_step(parameters)/parameters.getHorizontalAcceleration();
 }
 
-std::pair<Vect3, Velocity> DaidalusHsBands::trajectory(const DaidalusParameters& parameters, const TrafficState& ownship, double time, bool dir, int target_step, bool instantaneous) const {
+std::pair<Vect3, Vect3> DaidalusHsBands::trajectory(const DaidalusParameters& parameters, const TrafficState& ownship, double time, bool dir, int target_step, bool instantaneous) const {
   std::pair<Position,Velocity> posvel;
-  if (time == 0 && target_step == 0) {
-    return std::pair<Vect3, Velocity>(ownship.get_s(),ownship.get_v());
+  if (time == 0.0 && target_step == 0.0) {
+    return std::pair<Vect3, Vect3>(ownship.get_s(),ownship.get_v());
   } else if (instantaneous) {
     double gs = ownship.velocityXYZ().gs()+(dir?1:-1)*target_step*get_step(parameters);
     posvel = std::pair<Position, Velocity>(ownship.positionXYZ(),ownship.velocityXYZ().mkGs(gs));
@@ -69,7 +70,7 @@ std::pair<Vect3, Velocity> DaidalusHsBands::trajectory(const DaidalusParameters&
     posvel = ProjectedKinematics::gsAccel(ownship.positionXYZ(),ownship.velocityXYZ(),time,
         (dir?1:-1)*parameters.getHorizontalAcceleration());
   }
-  return std::pair<Vect3, Velocity>(ownship.pos_to_s(posvel.first),ownship.vel_to_v(posvel.first,posvel.second));
+  return std::pair<Vect3, Vect3>(ownship.pos_to_s(posvel.first),ownship.vel_to_v(posvel.first,posvel.second));
 }
 
 

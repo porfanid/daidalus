@@ -23,7 +23,7 @@ import gov.nasa.larcfm.Util.Velocity;
 
 public class DaidalusAltBands extends DaidalusRealBands {
 
-	public boolean get_recovery(DaidalusParameters parameters) {
+	public boolean do_recovery(DaidalusParameters parameters) {
 		return parameters.isEnabledRecoveryAltitudeBands();
 	}
 
@@ -54,8 +54,12 @@ public class DaidalusAltBands extends DaidalusRealBands {
 		return parameters.getAboveRelativeAltitude();
 	}
 
-	public void set_special_configuration(DaidalusParameters parameters, int dta_status) {	
-		if (dta_status > 0) { 
+	public boolean saturate_corrective_bands(DaidalusParameters parameters, SpecialBandFlags special_flags) {
+		return false;
+	}
+
+	public void set_special_configuration(DaidalusParameters parameters, SpecialBandFlags special_flags) {	
+		if (special_flags.get_dta_status() > 0) { 
 			set_min_max_rel(0,-1);
 		}
 	}
@@ -73,7 +77,7 @@ public class DaidalusAltBands extends DaidalusRealBands {
 		return 1.0;
 	}
 
-	public Pair<Vect3, Velocity> trajectory(DaidalusParameters parameters, TrafficState ownship, double time, boolean dir, int target_step, boolean instantaneous) {
+	public Pair<Vect3, Vect3> trajectory(DaidalusParameters parameters, TrafficState ownship, double time, boolean dir, int target_step, boolean instantaneous) {
 		double target_alt = get_min_val_()+target_step*get_step(parameters);
 		Pair<Position,Velocity> posvel;
 		if (instantaneous) {

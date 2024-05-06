@@ -10,8 +10,6 @@ package gov.nasa.larcfm.ACCoRD;
 import gov.nasa.larcfm.Util.Util;
 import gov.nasa.larcfm.Util.Vect2;
 import gov.nasa.larcfm.Util.Vect3;
-//import gov.nasa.larcfm.Util.Units;
-import gov.nasa.larcfm.Util.Velocity;
 import gov.nasa.larcfm.Util.f;
 
 import static gov.nasa.larcfm.ACCoRD.Consts.*;
@@ -140,36 +138,8 @@ public class Vertical {
 			return new Vertical(nvz+vi.z);
 	}
 
-	public static boolean hasEpsilonCriticalPointVertical(Vect3 s, Velocity vo, Velocity vi, Double D) {
-		Vect2 s2 = s.vect2();
-		Vect3 v = vo.Sub(vi);
-		Vect2 v2 = v.vect2();
-		double delta = Horizontal.Delta(s2, v2, D); 
-		double theta = 0.0;
-		if (delta >= 0) 
-			theta = Horizontal.Theta_D(s2, v2, -1, D);   // entry time
-		if (delta >= 0 && theta > 0) return true;
-		else return false;
-	}
-
-	// returns vertical speed that is a critical point
-	// if hasEpsilonCriticalPointVertical is false  the return is meaningless
-	public static double epsilonCriticalPointVertical(Vect3 s, Velocity vo, Velocity vi, Double D) {
-		Vect2 s2 = s.vect2();
-		Vect3 v = vo.Sub(vi);
-		Vect2 v2 = v.vect2();
-		double delta = Horizontal.Delta(s2, v2, D); 
-		double theta = 0.0;
-		if (delta >= 0) {
-			theta = Horizontal.Theta_D(s2, v2, -1, D);   // entry time
-			return -s.z / theta;
-		} else
-			return 0;
-	}
-
 	public String toString() {
 		return "[ undef = "+undef+" z = "+f.FmPrecision(z)+"]";
 	}
-
 
 }

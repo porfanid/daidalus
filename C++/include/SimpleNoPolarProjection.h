@@ -18,7 +18,6 @@
 #include "Velocity.h"
 #include "Position.h"
 #include "Util.h"
-#include "Point.h"
 
 namespace larcfm {
 
@@ -48,7 +47,7 @@ namespace larcfm {
      * 
      * @param lla reference point
      */
-    SimpleNoPolarProjection(const LatLonAlt& lla);
+    explicit SimpleNoPolarProjection(const LatLonAlt& lla);
 
     /** Create a projection around the given reference point.
      * 

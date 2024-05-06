@@ -64,6 +64,8 @@ int main(int argc, char* argv[]) {
   std::string conf = "";
   bool echo = false;
   int precision = 6;
+	bool do_inst = false;
+	bool no_hyst = false;
 
   for (int a=1;a < argc; ++a) {
     std::string arga = argv[a];
@@ -121,17 +123,25 @@ int main(int argc, char* argv[]) {
       ++a;
       std::vector<std::string> s = split(arga,",");
       traffic.insert(traffic.end(),s.begin(),s.end());
-    } else if (startsWith(arga,"--h") || startsWith(arga,"-h")) {
+    } else if (startsWith(arga,"--inst") || startsWith(arga,"-inst")) {
+			// Use the given configuration, but do instantaneous bands
+			do_inst = true;
+		} else if (startsWith(arga,"--nohys") || startsWith(arga,"-nohys")) {
+			// Use the given configuration, but disable hysteresis
+			no_hyst = true;
+		} else if (startsWith(arga,"--h") || startsWith(arga,"-h")) {
       std::cerr << "Usage:" << std::endl;
       std::cerr << "  DaidalusAlerting [<option>] <daa_file>" << std::endl;
       std::cerr << "  <option> can be" << std::endl;
       std::cerr << "  --config <configuration-file> | no_sum | nom_a | nom_b | cd3d | tcasii\n\tLoad <configuration-file>" << std::endl;
-      std::cerr << "  --<var>=<val>\n\t<key> is any configuration variable and val is its value (including units, if any), e.g., --lookahead_time=5[min]" << std::endl;
+      std::cerr << "  --<key>=<val>\n\t<key> is any configuration variable and val is its value (including units, if any), e.g., --lookahead_time=\"5[min]\"" << std::endl;
       std::cerr << "  --output <output_file>\n\tOutput information to <output_file>" << std::endl;
       std::cerr << "  --echo\n\tEcho configuration and traffic list in standard outoput" << std::endl;
       std::cerr << "  --precision <n>\n\tOutput decimal precision" << std::endl;
       std::cerr << "  --ownship <id>\n\tSpecify a particular aircraft as ownship" << std::endl;
-      std::cerr << "  --traffic <id1>,..,<idn>\nSpecify a list of aircraft as traffic" << std::endl;
+      std::cerr << "  --traffic <id1>,..,<idn>\n\tSpecify a list of aircraft as traffic" << std::endl;
+      std::cerr << "  --instantaneous\n\tOverride configuration to do instantaneous bands" << std::endl;
+			std::cerr << "  --nohystereis\n\tOverride configuation to disable hysteresis" << std::endl;
       std::cerr << "  --help\n\tPrint this message" << std::endl;
       exit(0);
     } else if (startsWith(arga,"-")){
@@ -140,7 +150,7 @@ int main(int argc, char* argv[]) {
     } else if (input_file == "") {
       input_file = arga;
     } else {
-      std::cerr << "** Error: Only one input file can be provided (" << a << ")" << std::endl;
+      std::cerr << "** Error: Only one input file can be provided (" << arga << ")" << std::endl;
       exit(1);
     }
   }
@@ -151,6 +161,12 @@ int main(int argc, char* argv[]) {
   }
   if (params.size() > 0) {
     daa.setParameterData(params);
+  }
+  if (do_inst) {
+    daa.setInstantaneousBands();
+  }
+  if (no_hyst) {
+    daa.disableHysteresis();
   }
   if (input_file == "") {
     if (echo) {
@@ -194,7 +210,7 @@ int main(int argc, char* argv[]) {
     return 0;
   }
   int corrective_level = daa.correctiveAlertLevel(1);
-  Detection3D* detector = daa.getAlerterAt(1).getDetectorPtr(corrective_level);
+  const Detection3D& detector = daa.getAlerterAt(1).getDetector(corrective_level);
   std::string uhor = daa.getUnitsOf("min_horizontal_recovery");
   std::string uver = daa.getUnitsOf("min_vertical_recovery");
   std::string uhs = daa.getUnitsOf("step_hs");
@@ -216,7 +232,7 @@ int main(int argc, char* argv[]) {
   }
   out << ", Horizontal Separation, Vertical Separation, Horizontal Closure Rate, Vertical Closure Rate, Projected HMD, Projected VMD, Projected TCPA, Projected DCPA, Projected TCOA";
   line_units += ", ["+uhor+"], ["+uver+"], ["+uhs+"], ["+uvs+"], ["+uhor+"], ["+uver+"], [s], ["+uhor+"], [s]";
-  if (detector != NULL && detector->getSimpleSuperClassName() == "WCV_tvar") {
+  if (detector.isValid() && detector.getSimpleSuperClassName() == "WCV_tvar") {
     out << ", Projected TAUMOD (WCV*)";
     line_units += ", [s]";
   }
@@ -275,8 +291,8 @@ int main(int argc, char* argv[]) {
         out << FmPrecision(tcoa);
       }
       out << ", ";
-      if (detector != NULL && detector->getSimpleSuperClassName() == "WCV_tvar") {
-        double tau_mod  = daa.modifiedTau(ac,((WCV_tvar*)detector)->getDTHR());
+      if (detector.isValid() && detector.getSimpleSuperClassName() == "WCV_tvar") {
+        double tau_mod  = daa.modifiedTau(ac,((WCV_tvar&)detector).getDTHR());
         if (tau_mod >= 0) {
           out << FmPrecision(tau_mod);
         }

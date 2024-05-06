@@ -30,7 +30,7 @@ DaidalusCore::DaidalusCore()
 , current_time(0)
 , wind_vector()
 , parameters()
-, urgency_strategy_(new NoneUrgencyStrategy())
+, urgency_strategy(new NoneUrgencyStrategy())
 , cache_(0) // Cached_ variables are cleared
 , acs_conflict_bands_(std::vector<std::vector<IndexLevelT> >(BandsRegion::NUMBER_OF_CONFLICT_BANDS)) {
   stale();
@@ -42,20 +42,20 @@ DaidalusCore::DaidalusCore(const Alerter& alerter)
 , current_time(0)
 , wind_vector()
 , parameters()
-, urgency_strategy_(new NoneUrgencyStrategy())
+, urgency_strategy(new NoneUrgencyStrategy())
 , cache_(0) // Cached_ variables are cleared
 , acs_conflict_bands_(std::vector<std::vector<IndexLevelT> >(BandsRegion::NUMBER_OF_CONFLICT_BANDS)) {
   parameters.addAlerter(alerter);
   stale();
 }
 
-DaidalusCore::DaidalusCore(const Detection3D* det, double T)
+DaidalusCore::DaidalusCore(const Detection3D& det, double T)
 : ownship()
 , traffic()
 , current_time(0)
 , wind_vector()
 , parameters()
-, urgency_strategy_(new NoneUrgencyStrategy())
+, urgency_strategy(new NoneUrgencyStrategy())
 , cache_(0) // Cached_ variables are cleared
 , acs_conflict_bands_(std::vector<std::vector<IndexLevelT> >(BandsRegion::NUMBER_OF_CONFLICT_BANDS)) {
   parameters.addAlerter(Alerter::SingleBands(det,T,T));
@@ -69,7 +69,7 @@ DaidalusCore::DaidalusCore(const DaidalusCore& core)
 , current_time(core.current_time)
 , wind_vector(core.wind_vector)
 , parameters(core.parameters)
-, urgency_strategy_(core.urgency_strategy_->copy())
+, urgency_strategy(core.urgency_strategy->copy())
 , cache_(0) // Cached_ variables are cleared
 , acs_conflict_bands_(std::vector<std::vector<IndexLevelT> >(BandsRegion::NUMBER_OF_CONFLICT_BANDS)) {
   stale();
@@ -82,8 +82,7 @@ void DaidalusCore::copyFrom(const DaidalusCore& core) {
     current_time = core.current_time;
     wind_vector = core.wind_vector;
     parameters = core.parameters;
-    delete urgency_strategy_;
-    urgency_strategy_ = core.urgency_strategy_->copy();
+    urgency_strategy.reset(core.urgency_strategy->copy());
     // Cached_ variables are cleared
     cache_ = 0;
     stale();
@@ -94,21 +93,6 @@ DaidalusCore& DaidalusCore::operator=(const DaidalusCore& core) {
   copyFrom(core);
   return *this;
 }
-
-const UrgencyStrategy* DaidalusCore::get_urgency_strategy() const {
-  return urgency_strategy_;
-}
-
-bool DaidalusCore::set_urgency_strategy(const UrgencyStrategy* strat) {
-  if (strat != NULL) {
-    delete urgency_strategy_;
-    urgency_strategy_ = strat->copy();
-    stale();
-    return true;
-  }
-  return false;
-}
-
 
 /**
  *  Clear ownship and traffic data from this object.
@@ -124,7 +108,7 @@ void DaidalusCore::clear() {
  *  Clear wind vector from this object.
  */
 void DaidalusCore::clear_wind() {
-  set_wind_velocity(Velocity::ZEROV());
+  set_wind_velocity(Vect3::ZERO());
 }
 
 bool DaidalusCore::set_alerter_ownship(int alerter_idx) {
@@ -152,6 +136,7 @@ bool DaidalusCore::set_alerter_traffic(int idx, int alerter_idx) {
 void DaidalusCore::clear_hysteresis() {
   alerting_hysteresis_acs_.clear();
   dta_hysteresis_acs_.clear();
+  below_min_as_hysteresis_.init();
   stale();
 }
 
@@ -165,7 +150,7 @@ void DaidalusCore::stale() {
     most_urgent_ac_ = TrafficState::INVALID();
     epsh_ = 0;
     epsv_ = 0;
-    dta_status_ = 0;
+    special_band_flags_.reset();
     for (int conflict_region=0; conflict_region < BandsRegion::NUMBER_OF_CONFLICT_BANDS; ++conflict_region) {
       acs_conflict_bands_[conflict_region].clear();
       tiov_[conflict_region] = Interval::EMPTY;
@@ -178,6 +163,7 @@ void DaidalusCore::stale() {
     for (hysteresis_ptr = dta_hysteresis_acs_.begin();hysteresis_ptr != dta_hysteresis_acs_.end();++hysteresis_ptr) {
       hysteresis_ptr->second.outdateIfCurrentTime(current_time);
     }
+    below_min_as_hysteresis_.outdateIfCurrentTime(current_time);
   }
 }
 
@@ -207,23 +193,25 @@ void DaidalusCore::refresh() {
         }
       }
     }
-    dta_status_ = 0; // Not active
+    int dta_status = 0; // Not active
     if (parameters.getDTALogic() != 0 && parameters.getDTAAlerter() != 0) {
       if (parameters.isAlertingLogicOwnshipCentric()) {
-        if (alerter_index_of(ownship) == parameters.getDTAAlerter()) {
-          dta_status_ = -1; // Inside DTA
+        if (alerter_index_of(ownship) == parameters.getDTAAlerter()) { // Hysteresis for dta is done here
+          dta_status = -1; // Inside DTA
         }
       } else {
-        for (int ac=0; ac < static_cast<int>(traffic.size()) && dta_status_ == 0; ++ac) {
-          if (alerter_index_of(traffic[ac]) == parameters.getDTAAlerter()) {
-            dta_status_ = -1; // Inside DTA
+        for (int ac=0; ac < static_cast<int>(traffic.size()) && dta_status == 0; ++ac) {
+          if (alerter_index_of(traffic[ac]) == parameters.getDTAAlerter()) { // Hysteresis for dta is done here
+            dta_status = -1; // Inside DTA
           }
         }
       }
-      if (dta_status_  < 0 && greater_than_corrective()) {
-        dta_status_ = 1; //Inside DTA and special bands enabled
+      if (dta_status  < 0 && greater_than_corrective()) {
+        dta_status = 1; //Inside DTA and special bands enabled
       }
     }
+    special_band_flags_.set_dta_status(dta_status);
+    special_band_flags_.set_below_min_as(below_min_as_hysteresis_current_value());
     refresh_mua_eps();
     cache_ = 1;
   }
@@ -245,7 +233,7 @@ void DaidalusCore::refresh_mua_eps() {
   if (cache_ < 0) {
     int muac = -1;
     if (!traffic.empty()) {
-      muac = urgency_strategy_->mostUrgentAircraft(ownship, traffic, parameters.getLookaheadTime());
+      muac = urgency_strategy->mostUrgentAircraft(ownship, traffic, parameters.getLookaheadTime());
     }
     if (muac >= 0) {
       most_urgent_ac_ = traffic[muac];
@@ -258,15 +246,27 @@ void DaidalusCore::refresh_mua_eps() {
   }
 }
 
-/**
- * Returns DTA status:
- *  0 : DTA is not active
- * -1 : DTA is active, but special bands are not enabled yet
- *  1 : DTA is active and special bands are enabled
- */
-int DaidalusCore::DTAStatus() {
-  refresh();
-  return dta_status_;
+int DaidalusCore::below_min_as_hysteresis_current_value() {
+	int actual_bmas = 0;
+	if (!below_min_as_hysteresis_.isValid()) {
+		below_min_as_hysteresis_.setHysteresisData(
+		parameters.getHysteresisTime(),
+		parameters.getPersistenceTime(),
+		parameters.getAlertingParameterM(),
+		parameters.getAlertingParameterN());
+	}
+	if (below_min_as_hysteresis_.isUpdatedAtCurrentTime(current_time)) {
+		actual_bmas = below_min_as_hysteresis_.getLastValue();
+	} else {
+		int raw_bmas = ownship.getAirVelocity().gs() < parameters.getMinAirSpeed() ? 1 : 0;	
+		actual_bmas = below_min_as_hysteresis_.applyHysteresisLogic(raw_bmas,current_time);
+	}
+	return actual_bmas > 0;
+}
+  
+const SpecialBandFlags& DaidalusCore::getSpecialBandFlags() {
+	refresh();
+	return special_band_flags_;
 }
 
 /**
@@ -349,10 +349,10 @@ double DaidalusCore::minVerticalRecovery() const {
   return TCASTable::TCASII_RA().getZTHR(sl);
 }
 
-void DaidalusCore::set_ownship_state(const std::string& id, const Position& pos, const Velocity& vel, double time) {
+void DaidalusCore::set_ownship_state(const std::string& id, const Position& pos, const Velocity& vel, const Velocity& airvel, double time) {
   traffic.clear();
-  ownship = TrafficState::makeOwnship(id,pos,vel);
-  ownship.applyWindVector(wind_vector);
+  ownship = TrafficState::makeOwnship(id,pos,vel,airvel);
+  wind_vector = ownship.windVector();
   current_time = time;
   stale();
 }
@@ -420,7 +420,19 @@ bool DaidalusCore::remove_traffic(int idx) {
   return false;
 }
 
-void DaidalusCore::set_wind_velocity(const Velocity& wind) {
+void DaidalusCore::set_ownship_airvelocity(double heading, double airspeed) {
+	if (has_ownship()) {
+		ownship.resetAirVelocity(Velocity::mkTrkGsVs(heading,airspeed,ownship.verticalSpeed()));
+		wind_vector = ownship.windVector();
+    std::vector<TrafficState>::iterator ac_ptr;
+    for (ac_ptr=traffic.begin();ac_ptr != traffic.end(); ++ac_ptr) {
+			ac_ptr->applyWindVector(wind_vector);
+		}
+		stale();
+	}
+}
+
+void DaidalusCore::set_wind_velocity(const Vect3& wind) {
   if (has_ownship()) {
     ownship.applyWindVector(wind);
     std::vector<TrafficState>::iterator ac_ptr;
@@ -469,9 +481,9 @@ int DaidalusCore::horizontal_contours(std::vector<std::vector<Position> >& blobs
       alert_level = parameters.correctiveAlertLevel(alerter_idx);
     }
     if (alert_level > 0) {
-      Detection3D* detector = alerter.getDetectorPtr(alert_level);
-      if (detector != NULL) {
-        detector->horizontalContours(blobs,ownship,intruder,
+      const Detection3D& detector = alerter.getDetector(alert_level);
+      if (detector.isValid()) {
+        detector.horizontalContours(blobs,ownship,intruder,
             parameters.getHorizontalContourThreshold(),
             parameters.getLookaheadTime());
       } else {
@@ -502,9 +514,9 @@ int DaidalusCore::horizontal_hazard_zone(std::vector<Position>& haz, int idx, in
       alert_level = parameters.correctiveAlertLevel(alerter_idx);
     }
     if (alert_level > 0) {
-      Detection3D* detector = alerter.getDetectorPtr(alert_level);
-      if (detector != NULL) {
-        detector->horizontalHazardZone(haz,
+      const Detection3D& detector = alerter.getDetector(alert_level);
+      if (detector.isValid()) {
+        detector.horizontalHazardZone(haz,
             (from_ownship ? ownship : intruder),
             (from_ownship ? intruder : ownship),
             (loss ? 0 : alerter.getLevel(alert_level).getAlertingTime()));
@@ -539,8 +551,8 @@ void DaidalusCore::conflict_aircraft(int conflict_region) {
       BandsRegion::Region region = BandsRegion::regionFromOrder(BandsRegion::NUMBER_OF_CONFLICT_BANDS-conflict_region);
       int alert_level = alerter.alertLevelForRegion(region);
       if (alert_level > 0) {
-        Detection3D* detector =  alerter.getLevel(alert_level).getCoreDetectionPtr();
-        if (detector != NULL) {
+        const Detection3D& detector =  alerter.getLevel(alert_level).getCoreDetection();
+        if (detector.isValid()) {
           std::map<std::string,HysteresisData>::iterator alerting_hysteresis_ptr = alerting_hysteresis_acs_.find(intruder.getId());
           double alerting_time = alerter.getLevel(alert_level).getAlertingTime();
           if (alerting_hysteresis_ptr != alerting_hysteresis_acs_.end() &&
@@ -549,7 +561,7 @@ void DaidalusCore::conflict_aircraft(int conflict_region) {
               alerting_hysteresis_ptr->second.getLastValue() == alert_level) {
             alerting_time = alerter.getLevel(alert_level).getEarlyAlertingTime();
           }
-          ConflictData det = detector->conflictDetectionWithTrafficState(ownship,intruder,0.0,parameters.getLookaheadTime());
+          ConflictData det = detector.conflictDetectionWithTrafficState(ownship,intruder,0.0,parameters.getLookaheadTime());
           if (det.conflict()) {
             if (det.conflictBefore(alerting_time)) {
               acs_conflict_bands_[conflict_region].push_back(IndexLevelT(ac,alert_level,parameters.getLookaheadTime()));
@@ -591,17 +603,16 @@ int DaidalusCore::dta_hysteresis_current_value(const TrafficState& ac) {
       parameters.getDTARadius() > 0 && parameters.getDTAHeight() > 0) {
     std::map<std::string,HysteresisData>::iterator dta_hysteresis_ptr = dta_hysteresis_acs_.find(ac.getId());
     if (dta_hysteresis_ptr ==  dta_hysteresis_acs_.end()) {
-      HysteresisData dta_hysteresis = HysteresisData(
+      HysteresisData dta_hysteresis = HysteresisData();
+      dta_hysteresis.setHysteresisData(
           parameters.getHysteresisTime(),
           parameters.getPersistenceTime(),
           parameters.getAlertingParameterM(),
           parameters.getAlertingParameterN());
-      int raw_dta = Util::almost_leq(ac.getPosition().distanceH(parameters.getDTAPosition()),parameters.getDTARadius()) &&
-          Util::almost_leq(ac.getPosition().alt(),parameters.getDTAHeight()) ? 1 : 0;
-      int actual_dta = dta_hysteresis.applyHysteresisLogic(raw_dta,current_time);
       dta_hysteresis_acs_[ac.getId()] = dta_hysteresis;
-      return actual_dta;
-    } else if (dta_hysteresis_ptr->second.isUpdatedAtCurrentTime(current_time)) {
+      dta_hysteresis_ptr = dta_hysteresis_acs_.find(ac.getId());
+    }
+    if (dta_hysteresis_ptr->second.isUpdatedAtCurrentTime(current_time)) {
       return dta_hysteresis_ptr->second.getLastValue();
     } else {
       int raw_dta = Util::almost_leq(ac.getPosition().distanceH(parameters.getDTAPosition()),parameters.getDTARadius()) &&
@@ -640,7 +651,7 @@ int DaidalusCore::alerter_index_of(const TrafficState& intruder) {
 int DaidalusCore::epsilonH(const TrafficState& ownship, const TrafficState& ac) {
   if (ownship.isValid() && ac.isValid()) {
     Vect2 s = ownship.get_s().Sub(ac.get_s()).vect2();
-    Vect2 v = ownship.get_v().Sub(ac.get_v()).vect2();
+    Vect2 v = ownship.get_v().vect2().Sub(ac.get_v().vect2());
     return CriteriaCore::horizontalCoordination(s,v);
   } else {
     return 0;
@@ -650,8 +661,7 @@ int DaidalusCore::epsilonH(const TrafficState& ownship, const TrafficState& ac) 
 int DaidalusCore::epsilonV(const TrafficState& ownship, const TrafficState& ac) {
   if (ownship.isValid() && ac.isValid()) {
     Vect3 s = ownship.get_s().Sub(ac.get_s());
-    return CriteriaCore::verticalCoordinationLoS(s,ownship.get_v(),ac.get_v(),
-        ownship.getId(), ac.getId());
+    return CriteriaCore::verticalCoordinationLoS(s,ownship.get_v(),ac.get_v(),ownship.getId(),ac.getId());
   } else {
     return 0;
   }
@@ -671,7 +681,7 @@ TrafficState DaidalusCore::recovery_ac() {
 bool DaidalusCore::check_alerting_thresholds(const Alerter& alerter, int alert_level, const TrafficState& intruder, int turning, int accelerating, int climbing) {
   const AlertThresholds& athr = alerter.getLevel(alert_level);
   if (athr.isValid()) {
-    Detection3D* detector = athr.getCoreDetectionPtr();
+    const Detection3D& detector = athr.getCoreDetection();
     std::map<std::string,HysteresisData>::iterator alerting_hysteresis_ptr = alerting_hysteresis_acs_.find(intruder.getId());
     double alerting_time = alerter.getLevel(alert_level).getAlertingTime();
     if (alerting_hysteresis_ptr != alerting_hysteresis_acs_.end() &&
@@ -682,7 +692,7 @@ bool DaidalusCore::check_alerting_thresholds(const Alerter& alerter, int alert_l
     }
     int epsh = epsilonH(false,intruder);
     int epsv = epsilonV(false,intruder);
-    ConflictData det = detector->conflictDetectionWithTrafficState(ownship,intruder,0.0,parameters.getLookaheadTime());
+    ConflictData det = detector.conflictDetectionWithTrafficState(ownship,intruder,0.0,parameters.getLookaheadTime());
     if (det.conflictBefore(alerting_time)) {
       return true;
     }
@@ -692,7 +702,7 @@ bool DaidalusCore::check_alerting_thresholds(const Alerter& alerter, int alert_l
         DaidalusDirBands dir_band;
         dir_band.set_min_max_rel(turning <= 0 ? athr.getHorizontalDirectionSpread() : 0,
             turning >= 0 ? athr.getHorizontalDirectionSpread() : 0);
-        if (dir_band.kinematic_conflict(parameters,ownship,intruder,detector,epsh,epsv,alerting_time,DTAStatus())) {
+        if (dir_band.kinematic_conflict(parameters,ownship,intruder,detector,epsh,epsv,alerting_time,getSpecialBandFlags())) {
           return true;
         }
       }
@@ -700,7 +710,7 @@ bool DaidalusCore::check_alerting_thresholds(const Alerter& alerter, int alert_l
         DaidalusHsBands hs_band;
         hs_band.set_min_max_rel(accelerating <= 0 ? athr.getHorizontalSpeedSpread() : 0,
             accelerating >= 0 ? athr.getHorizontalSpeedSpread() : 0);
-        if (hs_band.kinematic_conflict(parameters,ownship,intruder,detector,epsh,epsv,alerting_time,DTAStatus())) {
+        if (hs_band.kinematic_conflict(parameters,ownship,intruder,detector,epsh,epsv,alerting_time,getSpecialBandFlags())) {
           return true;
         }
       }
@@ -708,7 +718,7 @@ bool DaidalusCore::check_alerting_thresholds(const Alerter& alerter, int alert_l
         DaidalusVsBands vs_band;
         vs_band.set_min_max_rel(climbing <= 0 ? athr.getVerticalSpeedSpread() : 0,
             climbing >= 0 ? athr.getVerticalSpeedSpread() : 0);
-        if (vs_band.kinematic_conflict(parameters,ownship,intruder,detector,epsh,epsv,alerting_time,DTAStatus())) {
+        if (vs_band.kinematic_conflict(parameters,ownship,intruder,detector,epsh,epsv,alerting_time,getSpecialBandFlags())) {
           return true;
         }
       }
@@ -716,7 +726,7 @@ bool DaidalusCore::check_alerting_thresholds(const Alerter& alerter, int alert_l
         DaidalusAltBands alt_band;
         alt_band.set_min_max_rel(climbing <= 0 ? athr.getAltitudeSpread() : 0,
             climbing >= 0 ? athr.getAltitudeSpread() : 0);
-        if (alt_band.kinematic_conflict(parameters,ownship,intruder,detector,epsh,epsv,alerting_time,DTAStatus())) {
+        if (alt_band.kinematic_conflict(parameters,ownship,intruder,detector,epsh,epsv,alerting_time,getSpecialBandFlags())) {
           return true;
         }
       }
@@ -730,17 +740,16 @@ int DaidalusCore::alerting_hysteresis_current_value(const TrafficState& intruder
   if (1 <= alerter_idx && alerter_idx <= parameters.numberOfAlerters()) {
     std::map<std::string,HysteresisData>::iterator alerting_hysteresis_ptr = alerting_hysteresis_acs_.find(intruder.getId());
     if (alerting_hysteresis_ptr == alerting_hysteresis_acs_.end()) {
-      HysteresisData alerting_hysteresis = HysteresisData(
+      HysteresisData alerting_hysteresis = HysteresisData();
+      alerting_hysteresis.setHysteresisData(
           parameters.getHysteresisTime(),
           parameters.getPersistenceTime(),
           parameters.getAlertingParameterM(),
           parameters.getAlertingParameterN());
-      const Alerter& alerter = parameters.getAlerterAt(alerter_idx);
-      int raw_alert = raw_alert_level(alerter,intruder,turning,accelerating,climbing);
-      int actual_alert = alerting_hysteresis.applyHysteresisLogic(raw_alert,current_time);
       alerting_hysteresis_acs_[intruder.getId()] = alerting_hysteresis;
-      return actual_alert;
-    } else if (alerting_hysteresis_ptr->second.isUpdatedAtCurrentTime(current_time)) {
+      alerting_hysteresis_ptr = alerting_hysteresis_acs_.find(intruder.getId());
+    }
+    if (alerting_hysteresis_ptr->second.isUpdatedAtCurrentTime(current_time)) {
       return alerting_hysteresis_ptr->second.getLastValue();
     } else {
       const Alerter& alerter = parameters.getAlerterAt(alerter_idx);
@@ -786,7 +795,7 @@ int DaidalusCore::raw_alert_level(const Alerter& alerter, const TrafficState& in
   return 0;
 }
 
-std::string DaidalusCore::outputStringAircraftStates(bool internal) const {
+std::string DaidalusCore::outputStringAircraftStates(bool internal, bool header) const {
   std::string ualt = internal ? "m" : parameters.getUnitsOf("step_alt");
   std::string uhs = internal ? "m/s" : parameters.getUnitsOf("step_hs");
   std::string uvs = internal ? "m/s" : parameters.getUnitsOf("step_vs");
@@ -803,26 +812,25 @@ std::string DaidalusCore::outputStringAircraftStates(bool internal) const {
   } else {
     utrk="rad";
   }
-  return ownship.formattedTraffic(traffic,utrk,uxy,ualt,uhs,uvs,current_time);
+  return ownship.formattedTraffic(traffic,utrk,uxy,ualt,uhs,uvs,current_time,header);
 }
 
 std::string DaidalusCore::rawString() const {
-  std::string s="## Daidalus Core\n";
-  s+="current_time = "+FmPrecision(current_time)+"\n";
-  s+="## Daidalus Parameters\n";
-  s+=parameters.toString();
-  s+="## Cached variables\n";
-  s+="cache_ = "+Fmi(cache_)+"\n";
-  s+="most_urgent_ac_ = "+most_urgent_ac_.getId()+"\n";
-  s+="epsh_ = "+Fmi(epsh_)+"\n";
-  s+="epsv_ = "+Fmi(epsv_)+"\n";
-  s+="dta_status_ = "+Fmi(dta_status_)+"\n";
+  std::string s("## Daidalus Core\n");
+  s += "current_time = "+FmPrecision(current_time)+"\n";
+  s += "## Daidalus Parameters\n";
+  s += parameters.toString();
+  s += "## Cached variables\n";
+  s += "cache_ = "+Fmi(cache_)+"\n";
+  s += "most_urgent_ac_ = "+most_urgent_ac_.getId()+"\n";
+  s += "epsh_ = "+Fmi(epsh_)+"\n";
+  s += "epsv_ = "+Fmi(epsv_)+"\n";
   for (int conflict_region=0; conflict_region < BandsRegion::NUMBER_OF_CONFLICT_BANDS; ++conflict_region) {
-    s+="acs_conflict_bands_["+Fmi(conflict_region)+"] = "+
+    s += "acs_conflict_bands_["+Fmi(conflict_region)+"] = "+
         IndexLevelT::toString(acs_conflict_bands_[conflict_region])+"\n";
   }
   bool comma=false;
-  s+="tiov_ = {";
+  s += "tiov_ = {";
   for (int conflict_region=0; conflict_region < BandsRegion::NUMBER_OF_CONFLICT_BANDS; ++conflict_region) {
     if (comma) {
       s += ", ";
@@ -833,7 +841,7 @@ std::string DaidalusCore::rawString() const {
   }
   s += "}\n";
   comma=false;
-  s+="bands4region_ = {";
+  s += "bands4region_ = {";
   for (int conflict_region=0; conflict_region < BandsRegion::NUMBER_OF_CONFLICT_BANDS; ++conflict_region) {
     if (comma) {
       s += ", ";
@@ -845,26 +853,33 @@ std::string DaidalusCore::rawString() const {
   s += "}\n";
   std::map<std::string,HysteresisData>::const_iterator entry_ptr = alerting_hysteresis_acs_.begin();
   while (entry_ptr != alerting_hysteresis_acs_.end()) {
-    s+="alerting_hysteresis_acs_["+entry_ptr->first+"] = "+
+    s += "alerting_hysteresis_acs_["+entry_ptr->first+"] = "+
         entry_ptr->second.toString();
     ++entry_ptr;
   }
-  if (!alerting_hysteresis_acs_.empty()) {
-    s+="\n";
+  if (alerting_hysteresis_acs_.empty()) {
+    s += "alerting_hysteresis_acs_ = []\n";
+  } else {
+    s += "\n";
   }
   entry_ptr = dta_hysteresis_acs_.begin();
   while (entry_ptr != dta_hysteresis_acs_.end()) {
-    s+="dta_hysteresis_acs_["+entry_ptr->first+"] = "+
+    s += "dta_hysteresis_acs_["+entry_ptr->first+"] = "+
         entry_ptr->second.toString();
     ++entry_ptr;
   }
-  if (!dta_hysteresis_acs_.empty()) {
-    s+="\n";
+  if (dta_hysteresis_acs_.empty()) {
+    s += "dta_hysteresis_acs_ = []\n";
+  } else {
+    s += "\n";
   }
-  s+="wind_vector = "+wind_vector.toString()+"\n";
-  s+="## Ownship and Traffic Relative to Wind\n";
-  s+=outputStringAircraftStates(true);
-  s+="##\n";
+  s += "dta_status_ = "+Fmi(special_band_flags_.get_dta_status())+"\n";
+  s += "below_min_as_hysteresis_ = "+below_min_as_hysteresis_.toString()+"\n";
+	s += "below_min_as_ = "+Fmb(special_band_flags_.get_below_min_as())+"\n";
+  s += "wind_vector = "+wind_vector.toString()+"\n";
+  s += "## Ownship and Traffic Relative to Wind\n";
+  s += outputStringAircraftStates(true,false);
+  s += "##\n";
   return s;
 }
 

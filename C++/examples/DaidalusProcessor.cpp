@@ -9,13 +9,13 @@
 
 using namespace larcfm;
 
-DaidalusProcessor::DaidalusProcessor() {
-	from_ = -1;
-	to_ = -1;
-	relative_ = 0;
-	options_ = "";
-	ownship_ = "";
-}
+DaidalusProcessor::DaidalusProcessor() :
+	from_(-1),
+	to_(-1),
+	relative_(0),
+	options_(""),
+	ownship_(""),
+	skip_(true) {}
 
 double DaidalusProcessor::getFrom() const {
 	return from_;
@@ -28,11 +28,12 @@ double DaidalusProcessor::getTo() const {
 std::string DaidalusProcessor::getHelpString() {
 	std::string s = "";
 	s += "  --ownship <id>\n\tSpecify a particular aircraft as ownship\n";
-	s += "  --traffic <id1>,..,<idn>\nSpecify a list of aircraft as traffic\n";
-	s += "  --from\n\tCheck from time t\n";
-	s += "  --to t\n\tCheck up to time t\n";
-	s += "  --at [t | t+k | t-k]\n\tCheck times t, [t,t+k], or [t-k,t]. ";
-	s += "First time is denoted by +0. Last time is denoted by -0\n";
+	s += "  --traffic <id1>,..,<idn>\n\tSpecify a list of aircraft as traffic\n";
+	s += "  --from <t>\n\tStart at time <t>\n";
+	s += "  --to <t>\n\tEnd at time <t>\n";
+	s += "  --at [<t> | <t>+<k> | <t>-<k>]\n\tDo times <t>, [<t>,<t>+<k>], or [<t>-<k>,<t>], respectively.\n";
+	s += "\tFirst time is denoted by +0. Last time is denoted by -0\n";
+	s += "  --dontskip\n\tWhen using --from <t> or --at <t>, do all times before <t> to keep hysteresis\n";
 	return s;
 }
 
@@ -89,6 +90,8 @@ bool DaidalusProcessor::processOptions(const char* args[], int argc, int i) {
 				}
 			}
 		}
+	} else if (startsWith(args[i],"--dont") || startsWith(args[i],"-dont")) {
+		skip_ = false;
 	} else {
 		return false;
 	}
@@ -108,7 +111,6 @@ void DaidalusProcessor::processFile(const std::string& filename, Daidalus &daa) 
 	if (!traffic_.empty()) {
 		dw.selectTraffic(traffic_);
 	}
-
 	double from = from_;
 	double to = to_;
 	if (from < 0) {
@@ -123,10 +125,22 @@ void DaidalusProcessor::processFile(const std::string& filename, Daidalus &daa) 
 	if (relative_ < 0) {
 		from = to + relative_;
 	}
+	if (skip_) {
+		dw.goToTime(from);
+	} else {
+		dw.goToBeginning();
+	}	
 	if (dw.goToTime(from) && from <= to) {
 		while (!dw.atEnd() && dw.getTime() <= to) {
 			dw.readState(daa);
-			processTime(daa,filename);
+			if (daa.getCurrentTime() >= from) {
+				processTime(daa,filename);
+			} else {
+				daa.forceAltitudeBandsComputation();
+				daa.forceHorizontalDirectionBandsComputation();
+				daa.forceHorizontalSpeedBandsComputation();
+				daa.forceVerticalSpeedBandsComputation();
+			}
 		}
 	}
 }

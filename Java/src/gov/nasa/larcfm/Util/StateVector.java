@@ -47,19 +47,11 @@ public final class StateVector implements OutputList {
 		this.v = Velocity.ZERO;
 	}
 	
-	public static StateVector makeXYZ(double x, double y, double z, double trk, double gs, double vs, double t){
-		Vect3 s = Vect3.makeXYZ(x,"nmi",y,"nmi",z,"ft");
-		Velocity v = Velocity.makeTrkGsVs(trk,gs,vs);
-		return new StateVector(s,v,t);
-	}
-	
 	public StateVector(Pair<Vect3,Velocity> sv, double t ) {
 		this.s = sv.first;
 		this.v = sv.second;
 		this.t = t;
-  }
-
-
+ 	}
 	
 	public Pair<Vect3,Velocity> pair() {
 		return new Pair<Vect3,Velocity>(s,v);
@@ -77,7 +69,7 @@ public final class StateVector implements OutputList {
 		return t;
 	}
 	public StateVector linear(double deltaTm) {
-		Vect3 sAtTm = s.linear(v,deltaTm);
+		Vect3 sAtTm = s.linear(v.vect3(),deltaTm);
 		return new StateVector(sAtTm,v,t+deltaTm);
 	}
 	                        
@@ -104,14 +96,6 @@ public final class StateVector implements OutputList {
 		ret.addAll(v.toStringList(precision));
 		ret.add(f.FmPrecision(Units.to("s", t),precision));
 		return ret;
-	}
-	
-	public String toUnitTest(String postStr) {
-		String rtn = "";
-		rtn += "Vect3 s"+postStr+" = "+s.toUnitTest()+";\n";
-		rtn += "Velocity v"+postStr+" = "+v.toUnitTest()+";\n";
-		rtn += "double   t"+postStr+" = "+f.Fm4(t)+";\n";
-       return rtn;
 	}
 
 }

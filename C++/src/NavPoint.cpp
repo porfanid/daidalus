@@ -30,18 +30,17 @@ using std::runtime_error;
 static const bool NavPoint_DEBUG = false;
 
 const NavPoint& NavPoint::ZERO_LL() {
-	static NavPoint* v = new NavPoint(Position::ZERO_LL(), 0.0);
-	return *v;
+	const static NavPoint v(Position::ZERO_LL(),0.0);
+	return v;
 }
 const NavPoint& NavPoint::ZERO_XYZ() {
-	static NavPoint* v = new NavPoint(Position::ZERO_XYZ(), 0.0);
-	return *v;
+	const static NavPoint v(Position::ZERO_XYZ(),0.0);
+	return v;
 }
 const NavPoint& NavPoint::INVALID() {
-	static NavPoint* v = new NavPoint(Position::INVALID(), NaN);
-	return *v;
+	const static NavPoint v(Position::INVALID(),NaN);
+	return v;
 }
-
 
 NavPoint::NavPoint() :
     				p(Position::ZERO_LL()),
@@ -70,17 +69,9 @@ NavPoint NavPoint::mkLatLonAlt(double lat, double lon, double alt, double t) {
 	return NavPoint(Position::mkLatLonAlt(lat,lon,alt), t);
 }
 
-
-NavPoint NavPoint::makeXYZ(double x, double y, double z, double t) {
-	return NavPoint(Position::makeXYZ(x, y, z), t);
-}
-
 bool NavPoint::isInvalid() const {
 	return p.isInvalid() || t != t;
 }
-
-
-
 
 bool NavPoint::almostEquals(const NavPoint& v) const {
 	return Constants::almost_equals_time(t,v.t)
@@ -185,21 +176,21 @@ double NavPoint::longitude() const {
 	return p.longitude();
 }
 
-double NavPoint::altitude() const {
-	return p.altitude();
+double NavPoint::altitude_ft() const {
+	return p.altitude_ft();
 }
 
 
-double NavPoint::xCoordinate() const {
-	return p.xCoordinate();
+double NavPoint::xCoordinate_nmi() const {
+	return p.xCoordinate_nmi();
 }
 
-double NavPoint::yCoordinate() const {
-	return p.yCoordinate();
+double NavPoint::yCoordinate_nmi() const {
+	return p.yCoordinate_nmi();
 }
 
-double NavPoint::zCoordinate() const {
-	return p.zCoordinate();
+double NavPoint::zCoordinate_ft() const {
+	return p.zCoordinate_ft();
 }
 
 double NavPoint::time() const {
@@ -291,7 +282,7 @@ Velocity NavPoint::initialVelocity(const NavPoint& s1, const NavPoint& s2) {
 	}
 	double dt = s2.time() - s1.time();
 	if (dt == 0) {
-		return Velocity::ZEROV();
+		return Velocity::ZERO();
 	} else if (dt > 0) {
 		if (s2.isLatLon()) {
 			return GreatCircle::velocity_initial(s1.p.lla(), s2.p.lla(), dt);
@@ -318,7 +309,7 @@ Velocity NavPoint::finalVelocity(const NavPoint& s1, const NavPoint& s2) {
 	}
 	double dt = s2.time() - s1.time();
 	if (dt == 0) {
-		return Velocity::ZEROV();
+		return Velocity::ZERO();
 	} else if (dt > 0) {
 		if (s2.isLatLon()) {
 			return GreatCircle::velocity_final(s1.p.lla(), s2.p.lla(), dt);
@@ -346,7 +337,7 @@ Velocity NavPoint::averageVelocity(const NavPoint& s1, const NavPoint& s2) {
 	}
 	double dt = s2.time() - s1.time();
 	if (dt == 0) {
-		return Velocity::ZEROV();
+		return Velocity::ZERO();
 	} else if (dt > 0) {
 		if (s2.isLatLon()) {
 			return GreatCircle::velocity_average(s1.p.lla(), s2.p.lla(), dt);

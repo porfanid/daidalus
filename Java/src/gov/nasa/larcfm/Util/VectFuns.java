@@ -169,7 +169,6 @@ public final class VectFuns {
 		return so.Sub(si).dot(vo.Sub(vi)) > 0;
 	}
 
-
 	/**
 	 * Return if two aircraft in the given state are divergent in a 3D sense
 	 * 
@@ -179,7 +178,7 @@ public final class VectFuns {
 	 * @param vi intruder velocity
 	 * @return true, if divergent
 	 */
-	public static boolean divergent(Vect3 so, Velocity vo, Vect3 si, Velocity vi) {
+	public static boolean divergent(Vect3 so, Vect3 vo, Vect3 si, Vect3 vi) {
 		return so.Sub(si).dot(vo.Sub(vi)) > 0;
 	}
 
@@ -191,7 +190,7 @@ public final class VectFuns {
 	 * @param vi velocity of second aircraft
 	 * @return rate of closure
 	 */
-	public static double rateOfClosureHorizontal(Vect3 so, Velocity vo, Vect3 si, Velocity vi) {
+	public static double rateOfClosureHorizontal(Vect3 so, Vect3 vo, Vect3 si, Vect3 vi) {
 		return -so.Sub(si).vect2().Hat().dot(vo.Sub(vi).vect2());
 	}
 
@@ -203,7 +202,7 @@ public final class VectFuns {
 	 * @param vi velocity of second aircraft
 	 * @return rate of closure
 	 */
-	public static double rateOfClosureVertical(Vect3 so, Velocity vo, Vect3 si, Velocity vi) {
+	public static double rateOfClosureVertical(Vect3 so, Vect3 vo, Vect3 si, Vect3 vi) {
 		return Util.sign(si.z-so.z)*(vo.z-vi.z);
 	}
 
@@ -318,7 +317,7 @@ public final class VectFuns {
 	 * Note the intersection may be in the past (i.e. negative time)
 	 * If the lines are 2-D parallel (including collinear) this returns the pair (0,NaN).
 	 */
-	public static Pair<Vect3,Double> intersection(Vect3 so3, Velocity vo3, Vect3 si3, Velocity vi3) {
+	public static Pair<Vect3,Double> intersection(Vect3 so3, Vect3 vo3, Vect3 si3, Vect3 vi3) {
 		Vect2 so = so3.vect2();
 		Vect2 vo = vo3.vect2();
 		Vect2 si = si3.vect2();
@@ -329,7 +328,7 @@ public final class VectFuns {
 		}
 		double tt = ds.det(vi)/vo.det(vi);
 		Vect3 intersec = so3.AddScal(tt,vo3); 
-		double nZ = intersec.z();
+		double nZ = intersec.z;
 		double maxZ = Util.max(so3.z,si3.z);
 		double minZ = Util.min(so3.z,si3.z);			
 		if (nZ > maxZ) nZ = maxZ;
@@ -400,7 +399,7 @@ public final class VectFuns {
 	 * @return time the OWNSHIP (so3) will reach the point.  Note that the intruder (si3) may have already passed this point.
 	 * If the lines are parallel, this returns NaN.
 	 */
-	public static double timeOfIntersection(Vect3 so3, Velocity vo3, Vect3 si3, Velocity vi3) {
+	public static double timeOfIntersection(Vect3 so3, Vect3 vo3, Vect3 si3, Vect3 vi3) {
 		Vect2 so = so3.vect2();
 		Vect2 vo = vo3.vect2();
 		Vect2 si = si3.vect2();
@@ -429,18 +428,18 @@ public final class VectFuns {
 	 * If the lines are parallel, this returns the pair (0,NaN).
 	 */
 	public static Pair<Vect3,Double> intersectionAvgZ(Vect3 so1, Vect3 so2, double dto, Vect3 si1, Vect3 si2) {
-		Velocity vo3 = Velocity.genVel(so1, so2, dto); //along line 1
-		Velocity vi3 = Velocity.genVel(si1, si2, dto); //along line 2     // its ok to use any time here,  all times are relative to so
+		Vect3 vo3 = Velocity.genVel(so1, so2, dto).vect3(); //along line 1
+		Vect3 vi3 = Velocity.genVel(si1, si2, dto).vect3(); //along line 2     // its ok to use any time here,  all times are relative to so
 		Pair<Vect3,Double> iP = intersection(so1,vo3,si1,vi3); // 2d intersection along line 1 (includes line 1 altitude)
 		Vect3 interSec = iP.first;
 		double do1 = distanceH(so1,interSec);
 		double do2 = distanceH(so2,interSec);
-		double alt_o = so1.z();                   // chose z from end point of line 1 closest to interSec
-		if (do2 < do1) alt_o = so2.z();
+		double alt_o = so1.z;                   // chose z from end point of line 1 closest to interSec
+		if (do2 < do1) alt_o = so2.z;
 		double di1 = distanceH(si1,interSec);
 		double di2 = distanceH(si2,interSec);
-		double alt_i = si1.z();                   //  chose z from end point of line 2 closest to interSec
-		if (di2 < di1) alt_i = si2.z();
+		double alt_i = si1.z;                   //  chose z from end point of line 2 closest to interSec
+		if (di2 < di1) alt_i = si2.z;
 		double nZ = (alt_o + alt_i)/2.0;       
 		return new Pair<>(interSec.mkZ(nZ),iP.second); 
 	}
@@ -486,15 +485,6 @@ public final class VectFuns {
 		//f.pln(" $$$$ intersectSegments: alternate = "+so.Add(u.Scal(sI)));
 		return int2D;
 	}
-
-	
-	/**
-	 * Return true if, a,b,c, are collinear (assumed) and b is between a and c (inclusive) 
-	 */
-	private static boolean collinearBetween(Vect2 a, Vect2 b, Vect2 c) {
-		return a.distance(b) <= a.distance(c) && c.distance(b) <= c.distance(a);
-	}
-	
 
 	/**
 	 * returns the perpendicular time and distance between line defined by s,v and point q.
@@ -686,7 +676,7 @@ public final class VectFuns {
 	 * @param vi intruder velocity
 	 * @return 1 if ownship will pass in front (or collide, from a horizontal sense), -1 if ownship will pass behind, 0 if divergent or parallel
 	 */
-	public static int passingDirection(Vect3 so, Velocity vo, Vect3 si, Velocity vi) {
+	public static int passingDirection(Vect3 so, Vect3 vo, Vect3 si, Vect3 vi) {
 		double toi = timeOfIntersection(so,vo,si,vi);
 		double tii = timeOfIntersection(si,vi,so,vo); // these values may have opposite sign!
 		if (Double.isNaN(toi) || toi < 0 || tii < 0) return 0;
@@ -702,11 +692,9 @@ public final class VectFuns {
 		return (rightOfLine(si, vi, so) ? -1 : 1);
 	}
 
-	public static int dirForBehind(Vect3 so, Velocity vo, Vect3 si, Velocity vi) {
+	public static int dirForBehind(Vect3 so, Vect3 vo, Vect3 si, Vect3 vi) {
 		return dirForBehind(so.vect2(),vo.vect2(),si.vect2(),vi.vect2());	
 	}
-
-
 
 	/**
 	 * Calculate the normal (perpendicular vector) of a plane defined by 3 points.  This is not necessarily a unit vector.
@@ -805,39 +793,5 @@ public final class VectFuns {
 		ret.add(Pair.make(t2, t4));
 		return ret;
 	}
-
-	/** 
-	 * This parses a space or comma-separated string as a Vect3 (an inverse to the toString 
-	 * method).  If three bare values are present, then it is interpreted as the default units for 
-	 * a Vect3: [NM,NM,ft].  If there are 3 value/unit pairs then each values is interpreted with regard 
-	 * to the appropriate unit.  If the string cannot be parsed, an INVALID Vect3 is
-	 * returned. 
-	 * 
-	 * @param str string to parse
-	 * @return point
-	 */
-	public static Vect3 parse(String str) {
-		String[] fields = str.split(Constants.wsPatternParens);
-		if (fields[0].equals("")) {
-			fields = Arrays.copyOfRange(fields,1,fields.length);
-		}
-		try {
-			if (fields.length == 3) {
-				return Vect3.make(
-						Double.parseDouble(fields[0]),
-						Double.parseDouble(fields[1]),
-						Double.parseDouble(fields[2]));
-			} else if (fields.length == 6) {
-				return Vect3.makeXYZ(
-						Double.parseDouble(fields[0]), Units.clean(fields[1]),
-						Double.parseDouble(fields[2]), Units.clean(fields[3]),
-						Double.parseDouble(fields[4]), Units.clean(fields[5]));
-			}
-		} catch (Exception e) {
-			// ignore exceptions
-		}
-		return Vect3.INVALID;	
-	}
-
 
 }

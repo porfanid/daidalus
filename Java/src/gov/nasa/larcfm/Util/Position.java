@@ -13,7 +13,6 @@
 
 package gov.nasa.larcfm.Util;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -137,26 +136,13 @@ public final class Position implements OutputList {
 	/**
 	 * Creates a new Euclidean position with coordinates (<code>x</code>,<code>y</code>,<code>z</code>).
 	 * 
-	 * @param x coordinate [nmi]
-	 * @param y coordinate [nmi]
-	 * @param z altitude [ft]
-	 * @return new position
-	 */
-	public static Position makeXYZ(double x, double y, double z) {
-		return mkXYZ(Units.from(Units.NM, x), Units.from(Units.NM, y), Units.from(Units.ft,z));
-	}
-
-
-	/**
-	 * Creates a new Euclidean position with coordinates (<code>x</code>,<code>y</code>,<code>z</code>).
-	 * 
 	 * @param x coordinate [m]
 	 * @param y coordinate [m]
 	 * @param z altitude [m]
 	 * @return new position
 	 */
 	public static Position mkXYZ(double x, double y, double z) {
-		return make(Vect3.mk(x,y,z));
+		return make(Vect3.mkXYZ(x,y,z));
 	}
 
 	/**
@@ -337,7 +323,7 @@ public final class Position implements OutputList {
 //			Debug.error("Position.vect3",true);
 //		}
 		if (latlon) {
-			return Vect3.mk(ll.lon(), ll.lat(), ll.alt());			
+			return Vect3.mkXYZ(ll.lon(), ll.lat(), ll.alt());			
 		} else {
 			return s3;
 		}
@@ -436,28 +422,28 @@ public final class Position implements OutputList {
 	/** Return the altitude in feet 
 	 * @return altitude [ft]
 	 * */
-	public double altitude() {
+	public double altitude_ft() {
 		return Units.to(Units.ft, alt());
 	}
 
 	/** Return the x coordinate in [NM] 
 	 * @return x coordinate [NM]
 	 * */ 
-	public double xCoordinate() {
+	public double xCoordinate_nmi() {
 		return Units.to(Units.NM, x());
 	}
 
 	/** Return the y coordinate in [NM] 
 	 * @return y coordinate [NM]
 	 * */
-	public double yCoordinate() {
+	public double yCoordinate_nmi() {
 		return Units.to(Units.NM, y());
 	}
 
 	/** Return the z coordinate in [ft] 
 	 * @return z coordinate [ft]
 	 * */
-	public double zCoordinate() {
+	public double zCoordinate_ft() {
 		return Units.to(Units.ft, z());
 	}
 
@@ -478,7 +464,6 @@ public final class Position implements OutputList {
 		} else {
 			return s3.isInvalid();			
 		}
-		//return s3.isInvalid() || ll.isInvalid();
 	}
 
 	/** Make a new Position from the current one with the X coordinate changed 
@@ -602,7 +587,7 @@ public final class Position implements OutputList {
 		if (latlon) {
 			return make(GreatCircle.linear_initial(ll,v,time));
 		} else {
-			return make(s3.linear(v, time)); 
+			return make(s3.linear(v.vect3(), time)); 
 		}
 	}
 
@@ -828,7 +813,7 @@ public final class Position implements OutputList {
 			Pair<LatLonAlt,Double> pgc = GreatCircle.intersection(so.lla(),vo, si.lla(),vi);
 			return new Pair<Position,Double>(make(pgc.first),pgc.second );
 		} else {
-			Pair<Vect3,Double> pvt = VectFuns.intersection(so.vect3(),vo,si.vect3(),vi);
+			Pair<Vect3,Double> pvt = VectFuns.intersection(so.vect3(),vo.vect3(),si.vect3(),vi.vect3());
 			return new Pair<Position,Double>(make(pvt.first),pvt.second );
 		}
 	}
@@ -909,7 +894,7 @@ public final class Position implements OutputList {
 				f.pln(" --> angular_distance = "+Units.str("deg",angular_distance));
 			}
 		}  
-		Velocity relVel = vo.Sub(vi);
+		Velocity relVel = vo.Sub(vi.vect3());
 		Position so2 = so.linear(relVel,T);	  
 		//Plan debug1 = Plan.make(so,so2,Units.from("kn",250));
 		//Plan debug2 = Plan.make(si,si2,Units.from("kn",250));
@@ -1050,25 +1035,6 @@ public final class Position implements OutputList {
 		return (distH < D && distV < H);
 	}
 	
-	
-	public String toUnitTest() {
-		if (latlon) {
-			return "Position.makeLatLonAlt("+ f.Fm16(Units.to("deg",lat()))
-			       +", "+f.Fm16(Units.to("deg",lon()))+", "+f.Fm16(Units.to("ft",alt()))+")";
-		} else {
-			return "Position.makeXYZ("+(f.Fm16(Units.to("NM",x()))+", "+f.Fm16(Units.to("NM",y()))
-			       +", "	+f.Fm16(Units.to("ft",z()))+")");
-		}
-	}
-
-	public String toUnitTestSI() {
-		if (latlon) {
-			return "Position.mkLatLonAlt("+ f.Fm16(lat())+", "+f.Fm16(lon())+", "+f.Fm16(alt())+")";
-		} else {
-			return "Position.mkXYZ("+(f.Fm16(x())+", "+f.Fm16(y())+", "+f.Fm16(z())+")");
-		}
-	}
-
 	/** Return a string representation */
 	public String toString() {
 		return toString(Constants.get_output_precision());
@@ -1158,7 +1124,7 @@ public final class Position implements OutputList {
 		} else if (latlon) {
 			ret.add(Double.toString(ll.latitude()));
 			ret.add(Double.toString(ll.longitude()));
-			ret.add(Double.toString(ll.altitude()));
+			ret.add(Double.toString(ll.altitude_ft()));
 		} else {
 			ret.add(Double.toString(Units.to("NM",s3.x)));
 			ret.add(Double.toString(Units.to("NM",s3.y)));
@@ -1213,7 +1179,7 @@ public final class Position implements OutputList {
 			} else {
 				ret.add(f.FmPrecision(ll.latitude(),precision+extra));
 				ret.add(f.FmPrecision(ll.longitude(),precision+extra));
-				ret.add(f.FmPrecision(ll.altitude(),precision));
+				ret.add(f.FmPrecision(ll.altitude_ft(),precision));
 			}
 		} else {
 			if (internalUnits) {
@@ -1239,31 +1205,4 @@ public final class Position implements OutputList {
 		return new Position(LatLonAlt.parse(s));
 	}
 
-	/** This interprets a string as a XYZ position with units in NM/NM/ft or the specified units (inverse of toString()) 
-	 * 
-	 * @param s string to parse
-	 * @return position
-	 */
-	public static Position parseXYZ(String s) {
-		Vect3 v = VectFuns.parse(s);
-		return make(v);
-	}
-
-	/**
-	 * This interprets a string into a LatLonAlt or XYZ position, if appropriate units are given.
-	 * If no units are present, it returns an invalid Position.
-	 * @param s string to parse
-	 * @return position
-	 */
-	public static Position parse(String s) {
-		String[] fields = s.split(Constants.wsPatternParens);
-		if (fields[0].equals("")) {
-			fields = Arrays.copyOfRange(fields,1,fields.length);
-		}
-		if (fields.length == 6) {
-			if (Units.isCompatible(Units.clean(fields[1]), "deg") && Units.isCompatible(Units.clean(fields[3]), "deg") && Units.isCompatible(Units.clean(fields[5]), "ft")) return parseLL(s); // latlonalt
-			if (Units.isCompatible(Units.clean(fields[1]), "m") && Units.isCompatible(Units.clean(fields[3]), "m") && Units.isCompatible(Units.clean(fields[5]), "m")) return parseXYZ(s); // Euclidean
-		}
-		return Position.INVALID;
-	}
 }

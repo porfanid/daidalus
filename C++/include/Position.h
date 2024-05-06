@@ -18,7 +18,6 @@
 #include "Vect3.h"
 #include "Velocity.h"
 #include "LatLonAlt.h"
-#include "Point.h"
 #include <string>
 
 namespace larcfm {
@@ -87,7 +86,6 @@ public:
 	 */
 	static Position makeLatLonAlt(double lat, std::string lat_unit, double lon, std::string lon_unit, double alt, std::string alt_unit);
 
-
 	/**
 	 * Creates a new lat/lon position with coordinates (<code>lat</code>,<code>lon</code>,<code>alt</code>).
 	 *
@@ -97,17 +95,6 @@ public:
 	 * @return new position
 	 */
 	static Position mkLatLonAlt(double lat, double lon, double alt);
-
-	/**
-	 * Creates a new Euclidean position with coordinates (<code>x</code>,<code>y</code>,<code>z</code>).
-	 *
-	 * @param x coordinate [nmi]
-	 * @param y coordinate [nmi]
-	 * @param z altitude [ft]
-	 * @return new position
-	 */
-	static Position makeXYZ(double x, double y, double z);
-
 
 	/**
 	 * Creates a new Euclidean position with coordinates (<code>x</code>,<code>y</code>,<code>z</code>).
@@ -147,12 +134,7 @@ public:
 	 */
 	static Position make(const Vect3& p);
 
-	//  private:
-	//    static Position& makeZeroLL();
-	//    static Position& makeZeroXYZ();
-	//    static Position& makeInvalid();
 public:
-
 
 	/** Zero latitude, longitude and altitude */
 	static const Position& ZERO_LL();
@@ -160,7 +142,6 @@ public:
 	static const Position& ZERO_XYZ();
 
 	static const Position& INVALID();
-
 
 	/**
 	 * Checks if two Positions are almost the same.
@@ -246,19 +227,19 @@ public:
 	/** Return the altitude in feet
 	 * @return altitude [ft]
 	 * */
-	double altitude() const;
+	double altitude_ft() const;
 	/** Return the x coordinate in [NM]
 	 * @return x coordinate [NM]
 	 * */
-	double xCoordinate() const;
+	double xCoordinate_nmi() const;
 	/** Return the y coordinate in [NM]
 	 * @return y coordinate [NM]
 	 * */
-	double yCoordinate() const;
+	double yCoordinate_nmi() const;
 	/** Return the z coordinate in [ft]
 	 * @return z coordinate [ft]
 	 * */
-	double zCoordinate() const;
+	double zCoordinate_ft() const;
 
 	/** Return if this Position is a latitude or longitude
 	 * @return true if latitude/longitude
@@ -447,12 +428,7 @@ public:
 	 */
 	bool LoS(const Position& p2, double D, double H);
 
-	bool collinear(Position p1, Position p2) const;
-
-	std::string toUnitTest() const;
-
-	std::string toUnitTestSI() const;
-
+	bool collinear(const Position& p1, const Position& p2) const;
 
 	//	/** Return the average velocity between the current position and the given position, with the given speed [internal units]. */
 	//    Velocity averageVelocity(const Position& p2, double speed);
@@ -502,21 +478,6 @@ public:
 	 * @return position
 	 */
 	static const Position parseLL(const std::string& s);
-
-	/** This interprets a string as a XYZ position with units in NM/NM/ft or the specified units (inverse of toString())
-	 *
-	 * @param s string to parse
-	 * @return position
-	 */
-	static const Position parseXYZ(const std::string& s);
-
-	/**
-	 * This interprets a string into a LatLonAlt or XYZ position, if appropriate units are given.
-	 * If no units are present, it returns an invalid Position.
-	 * @param s string to parse
-	 * @return position
-	 */
-	static const Position parse(const std::string& s);
 
 };
 

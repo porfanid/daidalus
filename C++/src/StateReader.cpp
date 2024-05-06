@@ -316,7 +316,7 @@ namespace larcfm {
       } else {
         tm = input.getColumn(head[TM_CLK], "s");
       }
-    } catch (std::runtime_error e) {
+    } catch (std::runtime_error const& e) {
       error.addError("error parsing time at line "+Fm0(input.lineNumber()));
     }
     return tm;
@@ -354,7 +354,7 @@ namespace larcfm {
   }
   
   Velocity StateReader::getVelocity(int ac) const {
-	if (ac < 0 || ac >= size()) return Velocity::ZEROV();
+	if (ac < 0 || ac >= size()) return Velocity::ZERO();
 	return states[ac].velocityLast();
   }
   

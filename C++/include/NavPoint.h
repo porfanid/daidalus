@@ -15,7 +15,6 @@
 #define NAVPOINT_H_
 
 #include "Position.h"
-#include "Point.h"
 #include "Velocity.h"
 
 namespace larcfm {
@@ -80,24 +79,10 @@ public:
     static NavPoint mkLatLonAlt(double lat, double lon, double alt, double t);
 
 	/**
-	 * Creates a new Euclidean NavPoint with coordinates (<code>x</code>,<code>y</code>,<code>z</code>).
-	 * 
-	 * @param x coordinate [nmi]
-	 * @param y coordinate [nmi]
-	 * @param z altitude [ft]
-	 * @param t time [s]
-	 * @return a new NavPoint
-	 */
-    static NavPoint makeXYZ(double x, double y, double z, double t);
-
-	/**
 	 * Returns true if any components of this NavPoint are marked as Invalid
 	 * @return true, if invalid
 	 */
     bool isInvalid() const;
-
-
-    
     
     /** A zero NavPoint, in lat/lon coordinates */
     static const NavPoint& ZERO_LL();
@@ -193,13 +178,13 @@ public:
     /** Return the longitude in degrees east */
     double longitude() const;
     /** Return the altitude in [ft] */
-    double altitude() const;
+    double altitude_ft() const;
     /** Return the x coordinate in [nmi] */
-    double xCoordinate() const;
+    double xCoordinate_nmi() const;
     /** Return the y coordinate in [nmi] */
-    double yCoordinate() const;
+    double yCoordinate_nmi() const;
     /** Return the z coordinate in [ft] */
-    double zCoordinate() const;
+    double zCoordinate_ft() const;
 	/** Return the time [s] 
 	 * @return time in [s]
 	 * */

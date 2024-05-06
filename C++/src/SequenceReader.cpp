@@ -418,7 +418,7 @@ Velocity SequenceReader::getSequenceVelocity(const string& name, double time) {
 		return sequenceTable[time][name].second;
 	} else {
 		error.addWarning("getSequenceVelocity: invalid name/time combination");
-		return Velocity::ZEROV();
+		return Velocity::ZERO();
 	}
 }
 
@@ -439,9 +439,7 @@ void SequenceReader::removeAircraft(const vector<string>& alist) {
 				sequenceTable[key].erase(a);
 			}
 		}
-		if (names.find(a) != names.end()) {
-			names.erase(a);
-		}
+		names.erase(a);
 		for (vector<string>::iterator pos = nameIndex.begin(); pos < nameIndex.end(); ++pos) {
 			if (equals(*pos,a)) {
 				nameIndex.erase(pos);

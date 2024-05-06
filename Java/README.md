@@ -1,7 +1,7 @@
 DAIDALUS: Detect and Avoid Alerting Logic for Unmanned Systems
 ---------------------------------------------------------
 
-Release: v2.0.3a (Java), September-8-2023
+Release: v2.0.4 (Java), October-31-2023
 
 Copyright: Copyright (c) 2021 United States Government as represented by 
 the National Aeronautics and Space Administration.  No copyright 
@@ -56,8 +56,8 @@ To run a simple DAIDALUS application in a Unix environment, type
 $ ./DaidalusExample
 ```
 
-Several DAA metrics can be computed in batch mode for a given
-encounter file using the sample
+Several DAA metrics can be computed in batch mode for given
+configuration and encounter files using the sample
 program `DaidalusAlerting`, e.g.,
 
 ```
@@ -71,7 +71,7 @@ The generated file ` H1_DO_365B_no_SUM.csv` contains  alerting information compu
 for the encounter [`H1.daa`](../Scenarios/H1.daa) assuming [DO-365B (no SUM)](../Configurations/DO_365B_no_SUM.conf) configuration.
 
 The sample program `DaidalusBatch` generates alerting and banding
-information from a given encounter file, e.g.,
+information for given configuration and encounter files, e.g.,
 
 ```
 $ ./DaidalusBatch --conf  ../Configurations/DO_365B_no_SUM.conf ../Scenarios/H1.daa
@@ -90,7 +90,7 @@ Writing file H1.draw, which can be processed with the Python script drawmultiban
 produces a file `H1.draw`  for the encounter
 [`H1.daa`](../Scenarios/H1.daa) assuming [DO-365B (no SUM)](../Configurations/DO_365B_no_SUM.conf) configuration. This file can be processed with the Python
 script [`drawmultibands.py`](../Scripts/drawmultibands.py) to produce a PDF file displaying manuever
-guidance information for the given configuration and encounter files, e.g.,
+guidance information for the given configuration and encounter, e.g.,
 
 ```
 ../Scripts/drawmultibands.py H1.draw

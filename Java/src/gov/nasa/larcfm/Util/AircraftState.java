@@ -249,10 +249,8 @@ public final class AircraftState {
      * @param tm the time of the position and velocity
      */
 	public void add(Position ss, Velocity vv, double tm) {
-//if (id.equals("own")) f.pln("AircraftSate.add "+ss+" "+vv+" "+tm+" "+Arrays.toString(Thread.currentThread().getStackTrace()));
-		int i;
 		if (size >= 1 && tm <= timeLast()) {
-			i = find(tm);
+			int i = find(tm);
 			if (i >= 0 ) {
 				s_list[ext2int(i)] = ss;
 				v_list[ext2int(i)] = vv;
@@ -594,9 +592,6 @@ public final class AircraftState {
 		double sumvt = 0;
 		double hsumv = 0;
 		double hsumvt = 0;
-		double timediff = 0;
-		double vnorm = 0;
-		double vertvelz = 0;
 		double regdenom = 0;
 
 		recentInd = length - 1;
@@ -608,9 +603,9 @@ public final class AircraftState {
 //		}
 
 		for (int point = 0; point < length; point++) {
-			timediff = timevar[point] - timevar[recentInd];
-			vnorm = vel2[point].norm();
-			vertvelz = velZ[point];
+			double timediff = timevar[point] - timevar[recentInd];
+			double vnorm = vel2[point].norm();
+			double vertvelz = velZ[point];
 
 			sumv = sumv + vnorm;
 			sumt = sumt + timediff;
@@ -693,7 +688,7 @@ public final class AircraftState {
 		}
 		Pair<Vect3,Velocity> sv = get(i).pair();
 //if (id.equals("own")) f.pln(" ## predLinear: dt = "+dt+" sv.first = "+f.sStr(sv.first)+" sv.second = "+sv.second +" baseV="+velocity(i));
-		return new StateVector(sv.first.AddScal(dt, sv.second), sv.second,t);
+		return new StateVector(sv.first.AddScal(dt, sv.second.vect3()), sv.second,t);
 	}
 
 	/*
@@ -758,7 +753,7 @@ public final class AircraftState {
         } else {
 		    vonl = get(point-1).v();
         }
-		return Math.abs(vol.z) < minClimbVelocity && Math.abs(vonl.z) < minClimbVelocity;
+		return Math.abs(vol.z()) < minClimbVelocity && Math.abs(vonl.z()) < minClimbVelocity;
 	}
 	
 	/**
@@ -1076,12 +1071,12 @@ public final class AircraftState {
 	 */
 	public void prune() {
 		//dump();
-		Velocity lastV = Velocity.ZERO;
+		Velocity lastV;
 		double lastT = 0.0;
 		//f.pln("prune: initially, start = "+oldest+" size = " + size);
 		if (size < 2)
 			return;
-		double baseAccel = (velocity(size-1).z - velocity(size - 2).z) / (time(size-1) - time(size - 2));
+		double baseAccel = (velocity(size-1).z() - velocity(size - 2).z()) / (time(size-1) - time(size - 2));
 		//f.pln(" baseAccel = " + baseAccel);
 		int largestPruned = -1;  // relative index
 		lastV = velocity(0);
@@ -1089,7 +1084,7 @@ public final class AircraftState {
 		for (int i = 1; i < size; i++) {
 			//f.pln("!! s = " + s(i) + "  v =" + v(i) + " t = " + t(i));
 			double delT = time(i) - lastT;
-			double accel = (velocity(i).z - lastV.z) / delT;
+			double accel = (velocity(i).z() - lastV.z()) / delT;
 			lastV = velocity(i);
 			lastT = time(i);
 			//f.pln("!! for i = "+i+" accel = " + accel);

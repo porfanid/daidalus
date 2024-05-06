@@ -11,7 +11,6 @@
  */
 
 #include "Position.h"
-#include "Point.h"
 #include "LatLonAlt.h"
 #include "GreatCircle.h"
 #include "Projection.h"
@@ -33,39 +32,27 @@ const double minDist = 1E-9;
 // the follow is to avoid the static initialization fiasco
 
 const Position& Position::INVALID() {
-	static Position* pos = new Position(NaN, NaN, NaN);
-	return *pos;
+	const static Position pos(NaN, NaN, NaN);
+	return pos;
 }
 const Position& Position::ZERO_LL() {
-	static Position* pos = new Position(LatLonAlt::ZERO());
-	return *pos;
+	const static Position pos(LatLonAlt::ZERO());
+	return pos;
 }
 const Position& Position::ZERO_XYZ() {
-	static Position* pos = new Position(Vect3::ZERO());
-	return *pos;
+	const static Position pos(Vect3::ZERO());
+	return pos;
 }
 
+Position::Position() : latlon(true), ll(LatLonAlt::ZERO()) , s3(Vect3::ZERO()) {}
 
-Position::Position() : ll(LatLonAlt::ZERO()) , s3(Vect3::ZERO()) {
-	latlon = true;
-}
+Position::Position(const LatLonAlt& lla) : latlon(true), ll(lla) , s3(lla.lon(), lla.lat(), lla.alt()) {}
 
-Position::Position(const LatLonAlt& lla) : ll(lla) , s3(lla.lon(), lla.lat(), lla.alt()) {
-	latlon = true;
-}
+Position::Position(double x, double y, double z) : latlon(false), ll(LatLonAlt::mk(y, x, z)) , s3(x, y, z) {}
 
-Position::Position(double x, double y, double z) : ll(LatLonAlt::mk(y, x, z)) , s3(x, y, z) {
-	latlon = false;
-}
+Position::Position(const Vect3& v) : latlon(false), ll(LatLonAlt::mk(v.y(), v.x(), v.z())) , s3(v.x(), v.y(), v.z()) {}
 
-Position::Position(const Vect3& v) : ll(LatLonAlt::mk(v.y, v.x, v.z)) , s3(v.x, v.y, v.z) {
-	latlon = false;
-}
-
-Position::Position(const Position& p) : ll(LatLonAlt::mk(p.lat(), p.lon(), p.alt())) , s3(p.x(), p.y(), p.z()) {
-	latlon = p.latlon;
-}
-
+Position::Position(const Position& p) : latlon(p.latlon), ll(LatLonAlt::mk(p.lat(), p.lon(), p.alt())) , s3(p.x(), p.y(), p.z()) {}
 
 Position Position::makeLatLonAlt(double lat, double lon, double alt) {
 	return Position(LatLonAlt::make(lat,lon,alt));
@@ -79,15 +66,9 @@ Position Position::makeLatLonAlt(double lat, std::string lat_unit, double lon, s
 	return Position(LatLonAlt::make(lat, lat_unit, lon, lon_unit, alt, alt_unit));
 }
 
-Position Position::makeXYZ(double x, double y, double z) {
-	return Position(Units::from("nm", x), Units::from("nm", y), Units::from("ft",z));
-}
-
-
 Position Position::mkXYZ(double x, double y, double z) {
 	return Position(x,y,z);
 }
-
 
 Position Position::makeXYZ(double x, std::string x_unit, double y, std::string y_unit, double z, std::string z_unit) {
 	return Position(Units::from(x_unit, x), Units::from(y_unit, y), Units::from(z_unit,z));
@@ -107,9 +88,10 @@ Position Position::make(const Vect3& p)
 bool Position::almostEquals(const Position& v) const {
 	if (latlon) {
 	  return GreatCircle::almostEquals(lla(),v.lla());
-	} else
-		return Constants::almost_equals_xy(s3.x,s3.y,v.s3.x,v.s3.y)
-	&& Constants::almost_equals_alt(s3.z,v.s3.z);
+	} else {
+		return Constants::almost_equals_xy(s3.x(),s3.y(),v.s3.x(),v.s3.y())
+			&& Constants::almost_equals_alt(s3.z(),v.s3.z());
+	}
 }
 
 
@@ -129,24 +111,25 @@ bool Position::almostEquals2D(const Position& pp, double epsilon_horiz) const {
 	}
 }
 
-
-
 bool Position::operator == (const Position& v) const {  // strict equality
-	return s3.x==v.s3.x && s3.y==v.s3.y && s3.z==v.s3.z && latlon == v.latlon && ll.lat()==v.ll.lat() && ll.lon()==v.ll.lon() && ll.alt()==v.ll.alt();
+	return s3.x() == v.s3.x() && s3.y() == v.s3.y() && s3.z() == v.s3.z() && 
+			latlon == v.latlon && ll.lat() == v.ll.lat() && ll.lon() == v.ll.lon() && 
+			ll.alt() == v.ll.alt();
 }
 
 
 bool Position::operator != (const Position& v) const {  // strict disequality
-	return s3.x!=v.s3.x || s3.y!=v.s3.y || s3.z!=v.s3.z || latlon != v.latlon;
+	return s3.x() != v.s3.x() || s3.y() != v.s3.y() || s3.z() != v.s3.z() || 
+		   	latlon != v.latlon || ll.lat() != v.ll.lat() || ll.lon() != v.ll.lon() || 
+			ll.alt() != v.ll.alt();
 }
-
 
 bool Position::isInvalid() const {
 	return s3.isInvalid() || ll.isInvalid();
 }
 
 Vect2 Position::vect2() const {
-	return Vect2(s3.x,s3.y);
+	return Vect2(s3.x(),s3.y());
 }
 
 const Vect3& Position::vect3() const {
@@ -158,15 +141,15 @@ const LatLonAlt& Position::lla() const {
 }
 
 double Position::x() const {
-	return s3.x;
+	return s3.x();
 }
 
 double Position::y() const {
-	return s3.y;
+	return s3.y();
 }
 
 double Position::z() const {
-	return s3.z;
+	return s3.z();
 }
 
 double Position::lat() const {
@@ -189,22 +172,21 @@ double Position::longitude() const {
 	return ll.longitude();
 }
 
-double Position::altitude() const {
-	return ll.altitude();
+double Position::altitude_ft() const {
+	return ll.altitude_ft();
 }
 
-double Position::xCoordinate() const {
-	return Units::to("nm", s3.x);
+double Position::xCoordinate_nmi() const {
+	return Units::to("nm", s3.x());
 }
 
-double Position::yCoordinate() const {
-	return Units::to("nm", s3.y);
+double Position::yCoordinate_nmi() const {
+	return Units::to("nm", s3.y());
 }
 
-double Position::zCoordinate() const {
-	return Units::to("ft", s3.z);
+double Position::zCoordinate_ft() const {
+	return Units::to("ft", s3.z());
 }
-
 
 bool Position::isLatLon() const {
 	return latlon;
@@ -214,7 +196,7 @@ const Position Position::mkX(double x) const {
 	if (latlon) {
 		return Position(LatLonAlt::mk(ll.lat(), x, ll.alt()));
 	} else {
-		return Position(x, s3.y, s3.z);
+		return Position(x, s3.y(), s3.z());
 	}
 }
 
@@ -226,7 +208,7 @@ const Position Position::mkY(double y) const {
 	if (latlon) {
 		return Position(LatLonAlt::mk(y, ll.lon(), ll.alt()));
 	} else {
-		return Position(s3.x, y, s3.z);
+		return Position(s3.x(), y, s3.z());
 	}
 }
 
@@ -238,7 +220,7 @@ const Position Position::mkZ(double z) const {
 	if (latlon) {
 		return Position(LatLonAlt::mk(ll.lat(), ll.lon(), z));
 	} else {
-		return Position(s3.x, s3.y, z);
+		return Position(s3.x(), s3.y(), z);
 	}
 }
 
@@ -261,9 +243,8 @@ double Position::distanceH(const Position& p) const {
 }
 
 double Position::distanceV(const Position& p) const {
-	return std::abs(s3.z - p.s3.z);
+	return std::abs(s3.z() - p.s3.z());
 }
-
 
 double Position::distanceChordH(const Position& p) const {
 	if (latlon && p.latlon) {
@@ -275,8 +256,6 @@ double Position::distanceChordH(const Position& p) const {
 	}
 }
 
-
-
 const Position Position::linear(const Velocity& v, double time) const {
 	if (time == 0 || v.isZero()) {
 		return latlon ? Position(ll) : Position(s3);
@@ -284,7 +263,7 @@ const Position Position::linear(const Velocity& v, double time) const {
 	if (latlon) {
 		return Position(GreatCircle::linear_initial(ll,v,time));
 	} else {
-		return Position(s3.linear(v,time));
+		return Position(s3.linear(v.vect3(),time));
 	}
 }
 
@@ -293,11 +272,10 @@ const Position Position::linearEst(double dn, double de) const {
 	if (latlon) {
 		newNP = Position(lla().linearEst(dn,de));
 	} else {
-		return Position::mkXYZ(s3.x + de, s3.y + dn, s3.z);
+		return Position::mkXYZ(s3.x() + de, s3.y() + dn, s3.z());
 	}
 	return newNP;
 }
-
 
 const Position Position::linearEst(const Velocity& vo, double time) const {
 	Position newNP;
@@ -312,7 +290,6 @@ const Position Position::linearEst(const Velocity& vo, double time) const {
 	}
 	return newNP;
 }
-
 
 const std::pair<Position,Velocity> Position::linearDist2D(double track, double d, double gsAt_d) const {
 	  //f.pln(" $$$$$$ linearDist: v.track = "+Units::str("deg",v.compassAngle()));
@@ -344,7 +321,6 @@ const Position Position::linearDist2D(double track, double d) const {
 	  }
 }
 
-
 const Position Position::midPoint(const Position& p2) const{
 	if (latlon) {
 		return Position(GreatCircle::interpolate(ll,p2.lla(),0.5));
@@ -352,7 +328,6 @@ const Position Position::midPoint(const Position& p2) const{
 		return Position(VectFuns::midPoint(s3,p2.vect3()));
 	}
 }
-
 
 Position Position::interpolate(const Position& p2, double f) const {
   if (latlon) {
@@ -377,7 +352,7 @@ double Position::track(const Position& p) const {
 
 Velocity Position::initialVelocity(const Position& p, double dt) const {
 	if (dt<=0) {
-		return Velocity::ZEROV();
+		return Velocity::ZERO();
 	} else {
 		if (isLatLon()) {
 			return GreatCircle::velocity_initial(lla(), p.lla(), dt);
@@ -389,7 +364,7 @@ Velocity Position::initialVelocity(const Position& p, double dt) const {
 
 Velocity Position::finalVelocity(const Position& p, double dt) const {
 	if (dt<=0) {
-		return Velocity::ZEROV();
+		return Velocity::ZERO();
 	} else {
 		if (isLatLon()) {
 			return GreatCircle::velocity_final(lla(), p.lla(), dt);
@@ -398,11 +373,6 @@ Velocity Position::finalVelocity(const Position& p, double dt) const {
 		}
 	}
 }
-
-
-
-
-
 
 double Position::representativeTrack(const Position& p) const {
 	if (p.latlon != latlon) {
@@ -417,7 +387,6 @@ double Position::representativeTrack(const Position& p) const {
 	}
 }
 
-
 // returns intersection point and time of intersection relative to position so
 // a negative time indicates that the intersection occurred in the past (relative to directions of travel of so1)
 std::pair<Position,double> Position::intersection(const Position& so, const Velocity& vo, const Position& si, const Velocity& vi) {
@@ -429,11 +398,10 @@ std::pair<Position,double> Position::intersection(const Position& so, const Velo
 		std::pair<LatLonAlt,double> pgc = GreatCircle::intersection(so.lla(),vo, si.lla(),vi);
 		return std::pair<Position,double>(Position(pgc.first),pgc.second );
 	} else {
-		std::pair<Vect3,double> pvt = VectFuns::intersection(so.vect3(),vo,si.vect3(),vi);
+		std::pair<Vect3,double> pvt = VectFuns::intersection(so.vect3(),vo.vect3(),si.vect3(),vi.vect3());
 		return std::pair<Position,double>(Position(pvt.first),pvt.second );
 	}
 }
-
 
 /** Returns intersection point and time of intersection relative to the time of position so
  *  for time return value, it assumes that an aircraft travels from so1 to so2 in dto seconds and the other aircraft from si to si2
@@ -452,7 +420,6 @@ std::pair<Position,double> Position::intersection(const Position& so, const Posi
 		return std::pair<Position,double>(Position(pvt.first),pvt.second);
 	}
 }
-
 
 /** Returns intersection point and time of intersection relative to the time of position so
  *  for time return value, it assumes that an aircraft travels from so1 to so2 in dto seconds and the other aircraft from si to si2
@@ -474,27 +441,11 @@ Position Position::intersection2D(const Position& so, const Position& so2, const
 
 }
 
-
-
-
-
-//  Velocity Position::averageVelocity(const Position& p2, double speed) {
-//	  if (p2.latlon != latlon) {
-//		  fdln("Position.averageVelocity call given an inconsistent argument.");
-//		  return Velocity::ZEROV();
-//	  }
-//	  if (latlon) {
-//		  return GreatCircle::velocity_average_speed(ll,p2.ll,speed);
-//	  } else {
-//		  return Velocity::makeVel(s3,p2.s3,speed);
-//	  }
-//}
-
 /** Return the average velocity between the current position and the given position, with the given speed [internal units]. */
 Velocity Position::averageVelocity(const Position& p2, double speed) const {
   if (p2.latlon != latlon) {
 	fpln("Position.averageVelocity call given an inconsistent argument.");
-    return Velocity::ZEROV();
+    return Velocity::ZERO();
   }
   if (latlon) {
     return GreatCircle::velocity_average_speed(ll,p2.ll,speed);
@@ -507,14 +458,13 @@ Velocity Position::averageVelocity(const Position& p2, double speed) const {
 Velocity Position::avgVelocity(const Position& p2, double dt) const {
   if (p2.latlon != latlon) {
     fpln("Position.averageVelocity call given an inconsistent argument.");
-    return Velocity::ZEROV();
+    return Velocity::ZERO();
   }
   if (latlon) {
     return GreatCircle::velocity_average(ll,p2.ll,dt);
   } else {
     return Velocity::genVel(s3,p2.s3,dt);
   }
-
 }
 
 bool Position::isWest(const Position& a) const {
@@ -524,7 +474,6 @@ bool Position::isWest(const Position& a) const {
 		  return x() < a.x();
 	  }
 }
-
 
 bool Position::LoS(const Position& p2, double D, double H) {
 	if (p2.isInvalid()) return false;
@@ -538,32 +487,12 @@ bool Position::LoS(const Position& p2, double D, double H) {
 	return (distH < D && distV < H);
 }
 
-bool Position::collinear(Position p1, Position p2) const {
+bool Position::collinear(const Position& p1, const Position& p2) const {
 	if (latlon)
 		return GreatCircle::collinear(lla(),p1.lla(),p2.lla());
 	else
 		return VectFuns::collinear(vect3(),p1.vect3(),p2.vect3());
 }
-
-
-std::string Position::toUnitTest() const{
-	if (latlon) {
-		return "Position.makeLatLonAlt("+ Fm12(Units::to("deg",lat()))
-		       +", "+Fm16(Units::to("deg",lon()))+", "+Fm12(Units::to("ft",alt()))+")";
-	} else {
-		return "Position.makeXYZ("+(Fm8(Units::to("NM",x()))+", "+Fm8(Units::to("NM",y()))
-		       +", "	+Fm8(Units::to("ft",z()))+")");
-	}
-}
-
-std::string Position::toUnitTestSI() const {
-	if (latlon) {
-		return "Position.mkLatLonAlt("+ Fm12(lat())+", "+Fm12(lon())+", "+Fm12(alt())+")";
-	} else {
-		return "Position.mkXYZ("+(Fm8(x())+", "+Fm8(y())+", "+Fm8(z())+")");
-	}
-}
-
 
 std::string Position::toString() const {
 	return toString(Constants::get_output_precision());
@@ -573,16 +502,15 @@ std::string Position::toString(int prec) const {
 	if (latlon)
 		return "("+Units::str("deg",ll.lat(),prec)+", "+Units::str("deg",ll.lon(),prec)+", "+Units::str("ft",ll.alt(),prec)+")";
 	else
-		return "("+Units::str("NM",s3.x,prec)+", "+Units::str("NM",s3.y,prec)+", "+Units::str("ft",s3.z,prec)+")";
+		return "("+Units::str("NM",s3.x(),prec)+", "+Units::str("NM",s3.y(),prec)+", "+Units::str("ft",s3.z(),prec)+")";
 }
 
 std::string Position::toString2D(int prec) const {
 	if (latlon)
 		return "("+Units::str("deg",ll.lat(),prec)+", "+Units::str("deg",ll.lon(),prec)+")";
 	else
-		return "("+Units::str("NM",s3.x,prec)+", "+Units::str("NM",s3.y,prec)+")";
+		return "("+Units::str("NM",s3.x(),prec)+", "+Units::str("NM",s3.y(),prec)+")";
 }
-
 
 /**
  * Return a string representation using the given unit conversions (latitude and longitude,
@@ -593,7 +521,7 @@ std::string Position::toStringUnits(const string& xUnits, const string& yUnits, 
 	if (latlon)
 		return "("+Units::str("deg",ll.lat())+", "+Units::str("deg",ll.lon())+", "+Units::str(zUnits,ll.alt())+")";
 	else
-		return "("+Units::str(xUnits,s3.x)+", "+Units::str(yUnits,s3.y)+", "+Units::str(zUnits,s3.z)+")";
+		return "("+Units::str(xUnits,s3.x())+", "+Units::str(yUnits,s3.y())+", "+Units::str(zUnits,s3.z())+")";
 }
 
 std::string Position::toStringNP() const {
@@ -604,7 +532,7 @@ std::string Position::toStringNP(int precision) const {
 	if (latlon)
 		return ll.toString(precision);
 	else
-		return fsStrNP(s3, precision); // .toStringNP(precision, "NM", "NM", "ft");
+		return s3.toStringNP("NM","NM","ft",precision); 
 }
 
 std::vector<std::string> Position::toStringList() const {
@@ -616,11 +544,11 @@ std::vector<std::string> Position::toStringList() const {
 	} else if (latlon) {
 		ret.push_back(Fm12(ll.latitude()));
 		ret.push_back(Fm12(ll.longitude()));
-		ret.push_back(Fm12(ll.altitude()));
+		ret.push_back(Fm12(ll.altitude_ft()));
 	} else {
-		ret.push_back(Fm12(Units::to("NM",s3.x)));
-		ret.push_back(Fm12(Units::to("NM",s3.y)));
-		ret.push_back(Fm12(Units::to("ft",s3.z)));
+		ret.push_back(Fm12(Units::to("NM",s3.x())));
+		ret.push_back(Fm12(Units::to("NM",s3.y())));
+		ret.push_back(Fm12(Units::to("ft",s3.z())));
 	}
 	return ret;
 }
@@ -644,17 +572,17 @@ std::vector<std::string> Position::toStringList(int precision, int latLonExtraPr
 		} else {
 			ret.push_back(FmPrecision(ll.latitude(),precision+extra));
 			ret.push_back(FmPrecision(ll.longitude(),precision+extra));
-			ret.push_back(FmPrecision(ll.altitude(),precision));
+			ret.push_back(FmPrecision(ll.altitude_ft(),precision));
 		}
 	} else {
 		if (internalUnits) {
-			ret.push_back(FmPrecision(s3.x,precision));
-			ret.push_back(FmPrecision(s3.y,precision));
-			ret.push_back(FmPrecision(s3.z,precision));
+			ret.push_back(FmPrecision(s3.x(),precision));
+			ret.push_back(FmPrecision(s3.y(),precision));
+			ret.push_back(FmPrecision(s3.z(),precision));
 		} else {
-			ret.push_back(FmPrecision(Units::to("NM",s3.x),precision));
-			ret.push_back(FmPrecision(Units::to("NM",s3.y),precision));
-			ret.push_back(FmPrecision(Units::to("ft",s3.z),precision));
+			ret.push_back(FmPrecision(Units::to("NM",s3.x()),precision));
+			ret.push_back(FmPrecision(Units::to("NM",s3.y()),precision));
+			ret.push_back(FmPrecision(Units::to("ft",s3.z()),precision));
 		}
 	}
 	return ret;
@@ -663,26 +591,6 @@ std::vector<std::string> Position::toStringList(int precision, int latLonExtraPr
 /** This interprets a string as a LatLonAlt position with units of deg/deg/ft or in the specified units (inverse of toString()) */
 const Position Position::parseLL(const std::string& s) {
 	return Position::make(LatLonAlt::parse(s));
-}
-
-/** This interprets a string as a XYZ position with units of nmi/nmi/ft or in the specified units (inverse of toString()) */
-const Position Position::parseXYZ(const std::string& s) {
-	Vect3 v = VectFuns::parse(s); // Vect3.parse assumes internal units
-	//return makeXYZ(v.x, v.y, v.z);
-	return Position::make(v);
-}
-
-const Position Position::parse(const std::string& s) {
-	std::vector<std::string> fields = split(s, Constants::wsPatternParens);
-	while (fields.size() > 0 && equals(fields[0], "")) {
-		fields.erase(fields.begin());
-	}
-	if (fields.size() == 6) {
-		if (Units::isCompatible(Units::clean(fields[1]), "deg") && Units::isCompatible(Units::clean(fields[3]), "deg") && Units::isCompatible(Units::clean(fields[5]), "ft")) return parseLL(s);
-		if (Units::isCompatible(Units::clean(fields[1]), "m") && Units::isCompatible(Units::clean(fields[3]), "m") && Units::isCompatible(Units::clean(fields[5]), "m")) return parseXYZ(s);
-	}
-	return Position::INVALID();
-
 }
 
 }

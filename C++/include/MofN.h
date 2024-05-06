@@ -26,11 +26,6 @@ public:
   void setMofN(int m, int n, int val=-1);
 
   /*
-   * Creates an M of N object, with a given initial value
-   */
-  MofN(int m, int n, int val=-1);
-
-  /*
    * Creates an empty M of N object, with no parameter initialization.
    * Without further use of setMofN on this object, it's considered invalid and
    * doesn't perform M of N logic.
@@ -60,7 +55,7 @@ public:
    */
   int m_of_n(int value);
 
-  virtual ~MofN() {};
+  virtual ~MofN() {}
 
   bool sameAs(const MofN& mofn) const;
 

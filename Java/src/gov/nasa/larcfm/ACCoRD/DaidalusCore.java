@@ -32,7 +32,7 @@ public class DaidalusCore {
 	/* Current time */
 	public double current_time;   
 	/* Wind vector in TO direction */
-	public Velocity wind_vector;  
+	public Vect3 wind_vector; 
 	/* Kinematic bands parameters */
 	public DaidalusParameters parameters;
 	/* Strategy for most urgent aircraft */
@@ -48,19 +48,19 @@ public class DaidalusCore {
 	private int epsh_; 
 	/* Cached vertical epsilon for implicit coordination */
 	private int epsv_; 
-	/* Cached value of DTA status given current aircraft states. 
-	 *  0 : Not in DTA 
-	 * -1 : In DTA, but special bands are not enabled yet 
-	 *  1 : In DTA and special bands are enabled 
+	/* Cached value of special bands flag: below min airsped and dta status	*/
+	private SpecialBandFlags special_band_flags_; 
+	/* 
+	 * Cached lists of aircraft indices, alert_levels, and lookahead times sorted by indices, contributing to conflict (non-peripheral) 
+	 * band listed per conflict bands, where 0th:NEAR, 1th:MID, 2th:FAR 
 	 */
-	private int dta_status_;
-	/* Cached lists of aircraft indices, alert_levels, and lookahead times sorted by indices, contributing to conflict (non-peripheral) 
-	 * band listed per conflict bands, where 0th:NEAR, 1th:MID, 2th:FAR */
 	private List<List<IndexLevelT>> acs_conflict_bands_; 
 	/* Cached list of time to violation per conflict bands, where 0th:NEAR, 1th:MID, 2th:FAR */
 	private Interval[] tiov_; 
-	/* Cached list of boolean alues indicating which bands should be computed, where 0th:NEAR, 1th:MID, 2th:FAR.
-	 * NaN means that bands are not computed for that region*/
+	/* 
+	 * Cached list of boolean alues indicating which bands should be computed, where 0th:NEAR, 1th:MID, 2th:FAR.
+	 * NaN means that bands are not computed for that region
+	 */
 	private boolean[] bands4region_;
 
 	/**** HYSTERESIS VARIABLES ****/
@@ -68,6 +68,7 @@ public class DaidalusCore {
 	// Alerting and DTA hysteresis per aircraft's ids
 	private Map<String,HysteresisData> alerting_hysteresis_acs_; 
 	private Map<String,HysteresisData> dta_hysteresis_acs_; 
+	private HysteresisData below_min_as_hysteresis_; // Below min airspeed Hysteris
 
 	private void init() {
 
@@ -75,11 +76,12 @@ public class DaidalusCore {
 		ownship = TrafficState.INVALID;
 		traffic = new ArrayList<TrafficState>(); 
 		current_time = 0;
-		wind_vector = Velocity.ZERO;
+		wind_vector = Vect3.ZERO;
 		parameters = new DaidalusParameters();
 		urgency_strategy = NoneUrgencyStrategy.NONE_URGENCY_STRATEGY;
 
-		// Cached arrays_ are initialized
+		// Cached variables are initialized
+		special_band_flags_ = new SpecialBandFlags();
 		acs_conflict_bands_ = new ArrayList<List<IndexLevelT>>(BandsRegion.NUMBER_OF_CONFLICT_BANDS);
 		for (int conflict_region=0; conflict_region < BandsRegion.NUMBER_OF_CONFLICT_BANDS; ++conflict_region) {
 			acs_conflict_bands_.add(new ArrayList<IndexLevelT>());
@@ -90,6 +92,7 @@ public class DaidalusCore {
 		// Hysteresis variables are initialized
 		alerting_hysteresis_acs_ = new HashMap<String,HysteresisData>();
 		dta_hysteresis_acs_ = new HashMap<String,HysteresisData>();
+		below_min_as_hysteresis_ = new HysteresisData();
 
 		// Cached_ variables are cleared
 		cache_ = 0; 
@@ -115,7 +118,8 @@ public class DaidalusCore {
 		// Public arrays are initialized
 		traffic = new ArrayList<TrafficState>(); 
 
-		// Cached arrays_ are initialized
+		// Cached variables are initialized
+		special_band_flags_ = new SpecialBandFlags();
 		acs_conflict_bands_ = new ArrayList<List<IndexLevelT>>(BandsRegion.NUMBER_OF_CONFLICT_BANDS);
 		for (int conflict_region=0; conflict_region < BandsRegion.NUMBER_OF_CONFLICT_BANDS; ++conflict_region) {
 			acs_conflict_bands_.add(new ArrayList<IndexLevelT>());
@@ -126,6 +130,7 @@ public class DaidalusCore {
 		// Hysteresis variables are initialized
 		alerting_hysteresis_acs_ = new HashMap<String,HysteresisData>();
 		dta_hysteresis_acs_ = new HashMap<String,HysteresisData>();
+		below_min_as_hysteresis_ = new HysteresisData();
 
 		// Public variables are copied
 		ownship = core.ownship;
@@ -155,7 +160,7 @@ public class DaidalusCore {
 	 *  Clear wind vector from this object.   
 	 */
 	public void clear_wind() {
-		set_wind_velocity(Velocity.ZERO);
+		set_wind_velocity(Vect3.ZERO);
 	}
 
 	public boolean set_alerter_ownship(int alerter_idx) {
@@ -183,6 +188,7 @@ public class DaidalusCore {
 	public void clear_hysteresis() {
 		alerting_hysteresis_acs_.clear();
 		dta_hysteresis_acs_.clear();
+		below_min_as_hysteresis_.init();
 		stale();
 	}
 
@@ -195,7 +201,7 @@ public class DaidalusCore {
 			most_urgent_ac_ = TrafficState.INVALID;
 			epsh_ = 0;
 			epsv_ = 0;
-			dta_status_ = 0;
+			special_band_flags_.reset();
 			for (int conflict_region=0; conflict_region < BandsRegion.NUMBER_OF_CONFLICT_BANDS; ++conflict_region) {
 				acs_conflict_bands_.get(conflict_region).clear();
 				tiov_[conflict_region] = Interval.EMPTY;
@@ -207,6 +213,7 @@ public class DaidalusCore {
 			for (HysteresisData dta_hysteresis: dta_hysteresis_acs_.values()) {
 				dta_hysteresis.outdateIfCurrentTime(current_time);
 			}
+			below_min_as_hysteresis_.outdateIfCurrentTime(current_time);
 		}
 	}
 
@@ -236,23 +243,25 @@ public class DaidalusCore {
 					}
 				}
 			}
-			dta_status_ = 0; // Not active 
+			int dta_status = 0; // Not active 
 			if (parameters.getDTALogic() != 0 && parameters.getDTAAlerter() != 0) {
 				if (parameters.isAlertingLogicOwnshipCentric()) {
-					if (alerter_index_of(ownship) == parameters.getDTAAlerter()) {
-						dta_status_ = -1; // Inside DTA
+					if (alerter_index_of(ownship) == parameters.getDTAAlerter()) { // Hysteresis for dta is done here
+						dta_status = -1; // Inside DTA
 					}
 				} else {
-					for (int ac=0; ac < traffic.size() && dta_status_ == 0; ++ac) {
-						if (alerter_index_of(traffic.get(ac)) == parameters.getDTAAlerter()) {
-							dta_status_ = -1; // Inside DTA
+					for (int ac=0; ac < traffic.size() && dta_status == 0; ++ac) {
+						if (alerter_index_of(traffic.get(ac)) == parameters.getDTAAlerter()) { // Hysteresis for dta is done here
+							dta_status = -1; // Inside DTA
 						}
 					}
 				}
-				if (dta_status_  < 0 && greater_than_corrective()) {
-					dta_status_ = 1; //Inside DTA and special bands enabled
+				if (dta_status  < 0 && greater_than_corrective()) {
+					dta_status = 1; //Inside DTA and special bands enabled
 				}
 			}
+			special_band_flags_.set_dta_status(dta_status);
+			special_band_flags_.set_below_min_as(below_min_as_hysteresis_current_value());
 			refresh_mua_eps();
 			cache_ = 1;
 		} 
@@ -287,15 +296,27 @@ public class DaidalusCore {
 		}
 	}
 
-	/**
-	 * Returns DTA status:
-	 * 	0 : DTA is not active 
-	 * -1 : DTA is active, but special bands are not enabled yet 
-	 *  1 : DTA is active and special bands are enabled 
-	 */
-	public int DTAStatus() {
+	private boolean below_min_as_hysteresis_current_value() {
+		int actual_bmas = 0;
+		if (!below_min_as_hysteresis_.isValid()) {
+			below_min_as_hysteresis_.setHysteresisData(
+			parameters.getHysteresisTime(),
+			parameters.getPersistenceTime(),
+			parameters.getAlertingParameterM(),
+			parameters.getAlertingParameterN());
+		}
+		if (below_min_as_hysteresis_.isUpdatedAtCurrentTime(current_time)) {
+			actual_bmas = below_min_as_hysteresis_.getLastValue();
+		} else {
+			int raw_bmas = ownship.getAirVelocity().gs() < parameters.getMinAirSpeed() ? 1 : 0;	
+			actual_bmas = below_min_as_hysteresis_.applyHysteresisLogic(raw_bmas,current_time);
+		}
+		return actual_bmas > 0;
+	}
+
+	public SpecialBandFlags getSpecialBandFlags() {
 		refresh();
-		return dta_status_;
+		return special_band_flags_;
 	}
 
 	/**
@@ -378,10 +399,10 @@ public class DaidalusCore {
 		return TCASTable.TCASII_RA.getZTHR(sl);
 	}
 
-	public void set_ownship_state(String id, Position pos, Velocity vel, double time) {
+	public void set_ownship_state(String id, Position pos, Velocity vel, Velocity airvel, double time) {
 		traffic.clear();
-		ownship = TrafficState.makeOwnship(id,pos,vel);
-		ownship.applyWindVector(wind_vector);
+		ownship = TrafficState.makeOwnship(id,pos,vel,airvel);
+		wind_vector = ownship.windVector();
 		current_time = time;
 		stale(); 
 	}
@@ -451,7 +472,18 @@ public class DaidalusCore {
 		return false;
 	}
 
-	public void set_wind_velocity(Velocity wind) {
+	public void set_ownship_airvelocity(double heading, double airspeed) {
+		if (has_ownship()) {
+			ownship.resetAirVelocity(Velocity.mkTrkGsVs(heading,airspeed,ownship.verticalSpeed()));
+			wind_vector = ownship.windVector();
+			for (TrafficState ac : traffic) {
+				ac.applyWindVector(wind_vector);
+			}
+			stale();
+		}
+	}
+
+	public void set_wind_velocity(Vect3 wind) {
 		if (has_ownship()) {
 			ownship.applyWindVector(wind);
 			for (TrafficState ac : traffic) {
@@ -617,17 +649,15 @@ public class DaidalusCore {
 				parameters.getDTARadius() > 0 && parameters.getDTAHeight() > 0) {
 			HysteresisData dta_hysteresis = dta_hysteresis_acs_.get(ac.getId());
 			if (dta_hysteresis == null) {
-				dta_hysteresis = new HysteresisData(
-						parameters.getHysteresisTime(),
-						parameters.getPersistenceTime(),
-						parameters.getAlertingParameterM(),
-						parameters.getAlertingParameterN());
-				int raw_dta = Util.almost_leq(ac.getPosition().distanceH(parameters.getDTAPosition()),parameters.getDTARadius()) &&
-						Util.almost_leq(ac.getPosition().alt(),parameters.getDTAHeight()) ? 1 : 0;	
-				int actual_dta = dta_hysteresis.applyHysteresisLogic(raw_dta,current_time);
+				dta_hysteresis = new HysteresisData();
+				dta_hysteresis.setHysteresisData(
+					parameters.getHysteresisTime(),
+					parameters.getPersistenceTime(),
+					parameters.getAlertingParameterM(),
+					parameters.getAlertingParameterN());
 				dta_hysteresis_acs_.put(ac.getId(),dta_hysteresis);
-				return actual_dta;
-			} else if (dta_hysteresis.isUpdatedAtCurrentTime(current_time)) {
+			}
+			if (dta_hysteresis.isUpdatedAtCurrentTime(current_time)) {
 				return dta_hysteresis.getLastValue();
 			} else {
 				int raw_dta = Util.almost_leq(ac.getPosition().distanceH(parameters.getDTAPosition()),parameters.getDTARadius()) &&
@@ -666,7 +696,7 @@ public class DaidalusCore {
 	public static int epsilonH(TrafficState ownship, TrafficState ac) {
 		if (ownship.isValid() && ac.isValid()) {
 			Vect2 s = ownship.get_s().Sub(ac.get_s()).vect2();
-			Vect2 v = ownship.get_v().Sub(ac.get_v()).vect2();   
+			Vect2 v = ownship.get_v().vect2().Sub(ac.get_v().vect2());
 			return CriteriaCore.horizontalCoordination(s,v);
 		} else {
 			return 0;
@@ -676,8 +706,7 @@ public class DaidalusCore {
 	public static int epsilonV(TrafficState ownship, TrafficState ac) {
 		if (ownship.isValid() && ac.isValid()) {
 			Vect3 s = ownship.get_s().Sub(ac.get_s());
-			return CriteriaCore.verticalCoordinationLoS(s,ownship.get_v(),ac.get_v(),
-					ownship.getId(), ac.getId());
+			return CriteriaCore.verticalCoordinationLoS(s,ownship.get_v(),ac.get_v(),ownship.getId(),ac.getId());
 		} else {
 			return 0;
 		}
@@ -718,7 +747,7 @@ public class DaidalusCore {
 					DaidalusDirBands dir_band = new DaidalusDirBands();
 					dir_band.set_min_max_rel(turning <= 0 ? athr.getHorizontalDirectionSpread() : 0,
 							turning >= 0 ? athr.getHorizontalDirectionSpread() : 0);
-					if (dir_band.kinematic_conflict(parameters,ownship,intruder,detector,epsh,epsv,alerting_time,DTAStatus())) {
+					if (dir_band.kinematic_conflict(parameters,ownship,intruder,detector,epsh,epsv,alerting_time,getSpecialBandFlags())) {
 						return true;
 					}
 				}
@@ -726,7 +755,7 @@ public class DaidalusCore {
 					DaidalusHsBands hs_band = new DaidalusHsBands();
 					hs_band.set_min_max_rel(accelerating <= 0 ? athr.getHorizontalSpeedSpread() : 0,
 							accelerating >= 0 ? athr.getHorizontalSpeedSpread() : 0);
-					if (hs_band.kinematic_conflict(parameters,ownship,intruder,detector,epsh,epsv,alerting_time,DTAStatus())) {
+					if (hs_band.kinematic_conflict(parameters,ownship,intruder,detector,epsh,epsv,alerting_time,getSpecialBandFlags())) {
 						return true;
 					}
 				}
@@ -734,7 +763,7 @@ public class DaidalusCore {
 					DaidalusVsBands vs_band = new DaidalusVsBands();
 					vs_band.set_min_max_rel(climbing <= 0 ? athr.getVerticalSpeedSpread() : 0,
 							climbing >= 0 ? athr.getVerticalSpeedSpread() : 0);
-					if (vs_band.kinematic_conflict(parameters,ownship,intruder,detector,epsh,epsv,alerting_time,DTAStatus())) {
+					if (vs_band.kinematic_conflict(parameters,ownship,intruder,detector,epsh,epsv,alerting_time,getSpecialBandFlags())) {
 						return true;
 					}
 				}
@@ -742,7 +771,7 @@ public class DaidalusCore {
 					DaidalusAltBands alt_band = new DaidalusAltBands();
 					alt_band.set_min_max_rel(climbing <= 0 ? athr.getAltitudeSpread() : 0,
 							climbing >= 0 ? athr.getAltitudeSpread() : 0);
-					if (alt_band.kinematic_conflict(parameters,ownship,intruder,detector,epsh,epsv,alerting_time,DTAStatus())) {
+					if (alt_band.kinematic_conflict(parameters,ownship,intruder,detector,epsh,epsv,alerting_time,getSpecialBandFlags())) {
 						return true;
 					}
 				}
@@ -756,17 +785,15 @@ public class DaidalusCore {
 		if (1 <= alerter_idx && alerter_idx <= parameters.numberOfAlerters()) {
 			HysteresisData alerting_hysteresis = alerting_hysteresis_acs_.get(intruder.getId());
 			if (alerting_hysteresis == null) {
-				alerting_hysteresis = new HysteresisData(
-						parameters.getHysteresisTime(),
-						parameters.getPersistenceTime(),
-						parameters.getAlertingParameterM(),
-						parameters.getAlertingParameterN());
-				Alerter alerter = parameters.getAlerterAt(alerter_idx);
-				int raw_alert = raw_alert_level(alerter,intruder,turning,accelerating,climbing);
-				int actual_alert = alerting_hysteresis.applyHysteresisLogic(raw_alert,current_time);
+				alerting_hysteresis = new HysteresisData();
+				alerting_hysteresis.setHysteresisData(
+					parameters.getHysteresisTime(),
+					parameters.getPersistenceTime(),
+					parameters.getAlertingParameterM(),
+					parameters.getAlertingParameterN());
 				alerting_hysteresis_acs_.put(intruder.getId(),alerting_hysteresis);
-				return actual_alert;
-			} else if (alerting_hysteresis.isUpdatedAtCurrentTime(current_time)) {
+			}
+			if (alerting_hysteresis.isUpdatedAtCurrentTime(current_time)) {
 				return alerting_hysteresis.getLastValue();
 			} else {
 				Alerter alerter = parameters.getAlerterAt(alerter_idx);
@@ -812,7 +839,7 @@ public class DaidalusCore {
 		return 0;
 	}
 
-	public String outputStringAircraftStates(boolean internal) {
+	public String outputStringAircraftStates(boolean internal, boolean header) {
 		String ualt = internal ? "m" : parameters.getUnitsOf("step_alt");
 		String uhs = internal ? "m/s" : parameters.getUnitsOf("step_hs");
 		String uvs = internal ? "m/s" : parameters.getUnitsOf("step_vs");
@@ -829,26 +856,25 @@ public class DaidalusCore {
 		} else {
 			utrk="rad";
 		}
-		return ownship.formattedTraffic(traffic,utrk,uxy,ualt,uhs,uvs,current_time);
+		return ownship.formattedTraffic(traffic,utrk,uxy,ualt,uhs,uvs,current_time,header);
 	}
 
 	public String rawString() {
-		String s="## Daidalus Core\n"; 
-		s+="current_time = "+f.FmPrecision(current_time)+"\n";
-		s+="## Daidalus Parameters\n";
-		s+=parameters.toString();
-		s+="## Cached variables\n";
-		s+="cache_ = "+f.Fmi(cache_)+"\n";		
-		s+="most_urgent_ac_ = "+most_urgent_ac_.getId()+"\n";
-		s+="epsh_ = "+f.Fmi(epsh_)+"\n";
-		s+="epsv_ = "+f.Fmi(epsv_)+"\n";
-		s+="dta_status_ = "+dta_status_+"\n";
+		String s = "## Daidalus Core\n"; 
+		s += "current_time = "+f.FmPrecision(current_time)+"\n";
+		s += "## Daidalus Parameters\n";
+		s += parameters.toString();
+		s += "## Cached variables\n";
+		s += "cache_ = "+f.Fmi(cache_)+"\n";		
+		s += "most_urgent_ac_ = "+most_urgent_ac_.getId()+"\n";
+		s += "epsh_ = "+f.Fmi(epsh_)+"\n";
+		s += "epsv_ = "+f.Fmi(epsv_)+"\n";
 		for (int conflict_region=0; conflict_region < BandsRegion.NUMBER_OF_CONFLICT_BANDS; ++conflict_region) {
-			s+="acs_conflict_bands_["+conflict_region+"] = "+
+			s += "acs_conflict_bands_["+conflict_region+"] = "+
 					IndexLevelT.toString(acs_conflict_bands_.get(conflict_region))+"\n";
 		}
 		boolean comma=false;
-		s+="tiov_ = {";
+		s += "tiov_ = {";
 		for (int conflict_region=0; conflict_region < BandsRegion.NUMBER_OF_CONFLICT_BANDS; ++conflict_region) {
 			if (comma) {
 				s += ", ";
@@ -859,7 +885,7 @@ public class DaidalusCore {
 		}
 		s += "}\n";
 		comma=false;
-		s+="bands4region_ = {";
+		s += "bands4region_ = {";
 		for (int conflict_region=0; conflict_region < BandsRegion.NUMBER_OF_CONFLICT_BANDS; ++conflict_region) {
 			if (comma) {
 				s += ", ";
@@ -870,24 +896,30 @@ public class DaidalusCore {
 		}
 		s += "}\n";
 		for (Map.Entry<String,HysteresisData> entry : alerting_hysteresis_acs_.entrySet()) {
-			s+="alerting_hysteresis_acs_["+entry.getKey()+"] = "+
+			s += "alerting_hysteresis_acs_["+entry.getKey()+"] = "+
 					entry.getValue().toString();
 		}
-		if (!alerting_hysteresis_acs_.isEmpty()) {
-			s+="\n";
+		if (alerting_hysteresis_acs_.isEmpty()) {
+			s += "alerting_hysteresis_acs_ = []\n";
+		} else {
+			s += "\n";
 		}
 		for (Map.Entry<String,HysteresisData> entry : dta_hysteresis_acs_.entrySet()) {
-			s+="dta_hysteresis_acs_["+entry.getKey()+"] = "+
+			s += "dta_hysteresis_acs_["+entry.getKey()+"] = "+
 					entry.getValue().toString();
 		}
-		if (!dta_hysteresis_acs_.isEmpty()) {
-			s+="\n";
+		if (dta_hysteresis_acs_.isEmpty()) {
+			s += "dta_hysteresis_acs_ = []\n";
+		} else {
+			s += "\n";
 		}
-
-		s+="wind_vector = "+wind_vector.toString()+"\n";
-		s+="## Ownship and Traffic Relative to Wind\n";
-		s+=outputStringAircraftStates(true);
-		s+="##\n";
+		s += "dta_status_ = "+special_band_flags_.get_dta_status()+"\n";
+		s += "below_min_as_hysteresis_ = "+below_min_as_hysteresis_.toString()+"\n";
+		s += "below_min_as_ = "+special_band_flags_.get_below_min_as()+"\n";
+		s += "wind_vector = "+wind_vector.toString()+"\n";
+		s += "## Ownship and Traffic Relative to Wind\n";
+		s += outputStringAircraftStates(true,false);
+		s += "##\n";
 		return s;
 	}
 

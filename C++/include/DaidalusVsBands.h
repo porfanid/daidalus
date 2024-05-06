@@ -26,7 +26,7 @@ public:
 
   DaidalusVsBands(const DaidalusVsBands& b);
 
-  virtual bool get_recovery(const DaidalusParameters& parameters) const;
+  virtual bool do_recovery(const DaidalusParameters& parameters) const;
 
   virtual double get_step(const DaidalusParameters& parameters) const;
 
@@ -38,7 +38,11 @@ public:
 
   virtual double get_max_rel(const DaidalusParameters& parameters) const;
 
-  virtual void set_special_configuration(const DaidalusParameters& parameters, int dta_status);
+  virtual bool saturate_corrective_bands(const DaidalusParameters& parameters, const SpecialBandFlags& special_flags) const {
+    return false;
+  }
+ 
+  virtual void set_special_configuration(const DaidalusParameters& parameters, const SpecialBandFlags& special_flag);
 
   virtual bool instantaneous_bands(const DaidalusParameters& parameters) const;
 
@@ -46,7 +50,7 @@ public:
 
   virtual double time_step(const DaidalusParameters& parameters, const TrafficState& ownship) const;
 
-  virtual std::pair<Vect3, Velocity> trajectory(const DaidalusParameters& parameters, const TrafficState& ownship, double time, bool dir, int target_step, bool instantaneous) const;
+  virtual std::pair<Vect3, Vect3> trajectory(const DaidalusParameters& parameters, const TrafficState& ownship, double time, bool dir, int target_step, bool instantaneous) const;
 
   virtual double max_delta_resolution(const DaidalusParameters& parameters) const;
 

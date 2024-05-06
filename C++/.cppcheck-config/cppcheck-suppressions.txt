@@ -1,0 +1,14 @@
+stlFindInsert:src/Detection3DParameterReader.cpp
+stlFindInsert:src/SequenceReader.cpp
+uninitMemberVar:src/AircraftState.cpp
+missingIncludeSystem
+duplInheritedMember
+invalidPointerCast
+missingOverride
+cstyleCast
+shadowFunction
+useStlAlgorithm:src/DaidalusParameters.cpp
+useStlAlgorithm:src/SequenceReader.cpp
+useStlAlgorithm:include/DaidalusParameters.h
+missingInclude:include/Util.h
+unusedFunction

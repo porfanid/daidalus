@@ -175,7 +175,7 @@ public final class Kinematics {
 	 * @param turnRight true, if a right turn is desired
 	 * @return       bank angle (positive = turn right, negative = turn left)
 	 */
-	public static double bankAngleByRadius(double speed, double R, boolean turnRight) {
+	public static double bankAngleFromRadius(double speed, double R, boolean turnRight) {
 		return Util.sign(turnRight)*bankAngleFromRadius(speed, R);
 	}
 
@@ -275,7 +275,7 @@ public final class Kinematics {
 	 * @return linear projection of sv0 to time t
 	 */
 	public static Pair<Vect3,Velocity> linear(Vect3 s0, Velocity v0, double t) {
-		return new Pair<>(s0.linear(v0,t),v0);
+		return new Pair<>(s0.linear(v0.vect3(),t),v0);
 	}
 
 	
@@ -331,9 +331,9 @@ public final class Kinematics {
 		// New implementation avoids calculating track and groundspeed, 
 		// reduces trig functions to one sine and one cosine. 
 		Velocity nv = v0.mkAddTrk(omega*t);
-		double xT = s0.x + (v0.y-nv.y)/omega;
-		double yT = s0.y + (-v0.x+nv.x)/omega;
-		double zT = s0.z + v0.z*t;
+		double xT = s0.x + (v0.y()-nv.y())/omega;
+		double yT = s0.y + (-v0.x()+nv.x())/omega;
+		double zT = s0.z + v0.z()*t;
 		Vect3 ns = new Vect3(xT,yT,zT);
 		return new Pair<>(ns,nv);
 	}
@@ -896,7 +896,7 @@ public final class Kinematics {
 	 *  If time 2 is negative, the turn cannot be completed in less than 180 degrees.  Use genDirectToVertexList() below, in this case
 	 */
 	static Triple<Vect3,Double,Double> genDirectToVertex(Vect3 so, Velocity vo, Vect3 wp, double bankAngle, double timeBeforeTurn) {
-		so = so.Add(vo.Scal(timeBeforeTurn));
+		so = so.Add(vo.vect3().Scal(timeBeforeTurn));
 		double R = Kinematics.turnRadius(vo.gs(), bankAngle);
 		// note: this can result in a > 180 deg turn.  if this happens, the  intersection code fails!
 		Quad<Vect3,Velocity,Double,Integer> dtp = Kinematics.directToPoint(so,vo,wp,R);
@@ -905,7 +905,7 @@ public final class Kinematics {
 		}
 		Vect3 si = dtp.first;
 		Velocity vi = dtp.second;
-		Pair<Vect3,Double> ipPair = VectFuns.intersection(so,vo,si,vi);
+		Pair<Vect3,Double> ipPair = VectFuns.intersection(so,vo.vect3(),si,vi.vect3());
 		if (ipPair.second.isNaN()) {
 			return new Triple<>(Vect3.INVALID, -1.0, -1.0);
 		}
@@ -929,7 +929,7 @@ public final class Kinematics {
 	static ArrayList<Pair<Vect3,Double>> genDirectToVertexList(Vect3 so, Velocity vo, Vect3 wp, double bankAngle, double timeBeforeTurn, double timeBetweenPieces) {
 		ArrayList<Pair<Vect3,Double>> vlist = new ArrayList<>(); 
 
-		so = so.Add(vo.Scal(timeBeforeTurn));
+		so = so.Add(vo.vect3().Scal(timeBeforeTurn));
 		double R = Kinematics.turnRadius(vo.gs(), bankAngle);
 		//public static Triple<Vect3,Velocity,Double> directToPoint(Vect3 so, Velocity vo, Vect3 wp, double R) {
 		// note: this can result in a > 180 deg turn.  if this happens, the  intersection code fails!
@@ -942,15 +942,15 @@ public final class Kinematics {
 		double t90 = Kinematics.turnTime(vo.gs(), Math.PI/2.0, bankAngle);
 		int segments = (int)Math.ceil(dtp.third/t90);
 		double segTime = dtp.third/segments;
-		so = so.linear(vo, timeBeforeTurn);
+		so = so.linear(vo.vect3(), timeBeforeTurn);
 		double t = timeBeforeTurn;
-		Pair<Vect3,Velocity> p1 = new Pair<>(so.linear(vo, timeBeforeTurn),vo); 
+		Pair<Vect3,Velocity> p1 = new Pair<>(so.linear(vo.vect3(), timeBeforeTurn),vo); 
 		while (segments > 1) {
 			Pair<Vect3,Velocity> p2 = Kinematics.turn(p1.first, p1.second, segTime, R, dtp.fourth);
-			Pair<Vect3,Double> ipPair = VectFuns.intersection(p1.first,p1.second,p2.first,p2.second);
+			Pair<Vect3,Double> ipPair = VectFuns.intersection(p1.first,p1.second.vect3(),p2.first,p2.second.vect3());
 			t += ipPair.second;
 			vlist.add(new Pair<>(ipPair.first,t));
-			p1 = new Pair<>(p2.first.linear(p2.second, timeBetweenPieces),p2.second);
+			p1 = new Pair<>(p2.first.linear(p2.second.vect3(), timeBetweenPieces),p2.second);
 			segments --;
 		}
 		Triple<Vect3,Double,Double>dtl = genDirectToVertex(p1.first, p1.second, wp, bankAngle, 0);
@@ -981,7 +981,7 @@ public final class Kinematics {
 		boolean rtn = false;
 		for (double t = 0; t < stopTime; t = t + step) {
 			Vect3 soAtTm = turnUntilTrack(so, vo, t, nvo.trk(), bankAngleOwn).first;							
-			Vect3 siAtTm = si.linear(vi,t);
+			Vect3 siAtTm = si.linear(vi.vect3(),t);
 			double distH = soAtTm.Sub(siAtTm).vect2().norm();
 			double distV = Math.abs(soAtTm.Sub(siAtTm).z);
 			if (distH < D && distV< H) {
@@ -1842,10 +1842,8 @@ public final class Kinematics {
 	 */
 	public static Vect3 gsAccelPos(Vect3 so3, Velocity vo3,  double t, double a) {
 		Vect2 so = so3.vect2();
-		Vect2 vo = vo3.vect2();
-		Vect2 sK = so.Add(vo.Hat().Scal(vo.norm()*t+0.5*a*t*t));
-		//f.pln("gsAccelPosition: so = "+so+" vo = "+vo+" vo.norm = "+vo.norm()+" a = "+a+" t = "+t);
-		double nz = so3.z + vo3.z*t;
+		Vect2 sK = so.Add(vo3.Hat2D().Scal(vo3.gs()*t+0.5*a*t*t));
+		double nz = so3.z + vo3.z()*t;
 		return new Vect3(sK,nz);
 	}
 
@@ -1918,11 +1916,6 @@ public final class Kinematics {
 		}
 	}
 
-
-
-
-
-
 	/** Test for LoS(D,H) between two aircraft when only ownship accelerates (in ground speed), compute trajectories up to time stopTime
 	 * 
 	 * @param so    initial position of ownship
@@ -1943,7 +1936,7 @@ public final class Kinematics {
 		boolean rtn = false;
 		for (double t = 0; t < stopTime; t = t + step) {
 			Vect3 soAtTm = gsAccelUntil(so, vo, t, nvo.gs(), gsAccelOwn).first;	
-			Vect3 siAtTm = si.linear(vi,t);
+			Vect3 siAtTm = si.linear(vi.vect3(),t);
 			//f.pln(" $$$$ testLoSTrk: t = "+t+"  dist = "+Units.str("nm",dist));
 			double distH = soAtTm.Sub(siAtTm).vect2().norm();
 			double distV = Math.abs(soAtTm.Sub(siAtTm).z);
@@ -1975,9 +1968,9 @@ public final class Kinematics {
 	 * @return         final position
 	 */
 	public static Vect3 vsAccelPos(Vect3 so3, Velocity vo3, double t, double a) {
-		return new Vect3(so3.x + t*vo3.x, 
-				so3.y + t*vo3.y, 
-				so3.z + vo3.z*t + 0.5*a*t*t);
+		return new Vect3(so3.x + t*vo3.x(), 
+				so3.y + t*vo3.y(), 
+				so3.z + vo3.z()*t + 0.5*a*t*t);
 	}
 
 	/**
@@ -2037,7 +2030,7 @@ public final class Kinematics {
 		if (goalVs < vo.vs()) sgn = -1;
 		double accelTime = vsAccelTime(vo, goalVs, vsAccel);
 		Vect3 nso = vsAccelPos(so, vo, accelTime, sgn*vsAccel); 
-		Velocity nvo = Velocity.mkVxyz(vo.x,vo.y,goalVs);
+		Velocity nvo = Velocity.mkVxyz(vo.x(),vo.y(),goalVs);
 		return new Triple<>(nso,nvo,accelTime);
 	}
 
@@ -2065,7 +2058,7 @@ public final class Kinematics {
 			return vsAccel(so,vo, t, sgn*vsAccel);
 		} else {
 			Vect3 posEnd = vsAccelPos(so,vo,accelTime,sgn*vsAccel);
-			Velocity nvo = Velocity.mkVxyz(vo.x,vo.y, goalVs);
+			Velocity nvo = Velocity.mkVxyz(vo.x(),vo.y(), goalVs);
 			return linear(posEnd,nvo,t-accelTime);
 		}
 	}
@@ -2087,8 +2080,6 @@ public final class Kinematics {
 		return voz*t+0.5*alpha*t*(t-Tr);
 	}
 
-
-
 	/**
 	 *  Position/Velocity after t time units where there is first an acceleration or deceleration to the target
 	 *  vertical speed goalVs and then continuing at that speed for the remainder of the time, if any.
@@ -2109,7 +2100,7 @@ public final class Kinematics {
 		if (Util.almost_equals(tRamp,0)) return vsAccelUntil(so,vo,t,goalVs,vsAccel);
 		double nz;
 		double nvz;
-		Vect3 hs = so.linear(vo,t);
+		Vect3 hs = so.linear(vo.vect3(),t);
 		int sgn = 1;
 		if (goalVs < vo.vs()) sgn = -1;
 		double a = sgn*vsAccel;
@@ -2117,10 +2108,10 @@ public final class Kinematics {
 		if (deltaV < 0.5*vsAccel*tRamp)  { 	// case 1:  target vertical speed goalVs is achieved before the ramp-up phase is completed.
 			double Tmax = Math.sqrt(2*tRamp*(goalVs - vo.vs())/a);
 			if (t <= Tmax) {
-				nz = so.z+ gamma(vo.z,a,tRamp,t);
-				nvz = vo.z + 0.5*a*t*t/tRamp;
+				nz = so.z+ gamma(vo.z(),a,tRamp,t);
+				nvz = vo.z() + 0.5*a*t*t/tRamp;
 			} else {
-				nz = so.z+ gamma(vo.z,a,tRamp,Tmax) + (goalVs)*(t-Tmax);
+				nz = so.z+ gamma(vo.z(),a,tRamp,Tmax) + (goalVs)*(t-Tmax);
 				nvz = goalVs;
 			}
 			//f.pln(f.Fm1(t)+">>>>>>>>>>> CASE 1: Tmax = "+Tmax+" gamma(vo.z,a,tRamp,t) = "+Units.str("ft",gamma(vo.z,a,tRamp,t))+" nvz = "+Units.str("fpm",nvz));
@@ -2129,16 +2120,16 @@ public final class Kinematics {
 			//f.pln(" goalVs = "+Units.str("fpm",goalVs)+" vo.verticalSpeed() = "+Units.str("fpm",vo.vs())+"  tRamp = "+tRamp);
 			//f.pln(">>>>>>>>>>> CASE 2: Tmax = "+Tmax);
 			if (t < tRamp) {
-				nz = so.z+ gamma(vo.z,a,tRamp,t);
+				nz = so.z+ gamma(vo.z(),a,tRamp,t);
 				//f.pln(" t = "+t+" gamma(vo.z,a,tRamp,t) = "+Units.str("ft",gamma(vo.z,a,tRamp,t))+" nz = "+Units.str("ft",nz));
-				nvz = vo.z + 0.5*a*t*t/tRamp;
+				nvz = vo.z() + 0.5*a*t*t/tRamp;
 			} else if (t < Tmax) {
-				nz = so.z+ gamma(vo.z,a,tRamp,tRamp) + rho(vo.z,a,tRamp,t) - rho(vo.z,a,tRamp,tRamp);
-				nvz = vo.z + a*t - 0.5*a*tRamp;
+				nz = so.z+ gamma(vo.z(),a,tRamp,tRamp) + rho(vo.z(),a,tRamp,t) - rho(vo.z(),a,tRamp,tRamp);
+				nvz = vo.z() + a*t - 0.5*a*tRamp;
 				//f.pln(" t = "+t+"  rho(vo.z,a,tRamp,t) = "+Units.str("ft",rho(vo.z,a,tRamp,t))+" nz = "+Units.str("ft",nz)+" nvz = "+Units.str("fpm",nvz));
 			} else {
-				nz = so.z + gamma(vo.z,a,tRamp,tRamp) 
-				+ rho(vo.z,a,tRamp,Tmax) - rho(vo.z,a,tRamp,tRamp)+ (goalVs)*(t-Tmax);
+				nz = so.z + gamma(vo.z(),a,tRamp,tRamp) 
+				+ rho(vo.z(),a,tRamp,Tmax) - rho(vo.z(),a,tRamp,tRamp)+ (goalVs)*(t-Tmax);
 				//f.pln(" t = "+t+"  goalVs*(t-Tmax) = "+Units.str("ft",goalVs*(t-Tmax))+" nz = "+Units.str("ft",nz));
 				nvz = goalVs;
 			}
@@ -2326,7 +2317,7 @@ public final class Kinematics {
 	public static Tuple5<Double,Double,Double,Double,Double> vsLevelOutTimes(Pair<Vect3, Velocity> svo, double climbRate, double targetAlt, 
 			double accelup, double acceldown, boolean allowClimbRateChange) {	
 		double s0z = svo.first.z;
-		double v0z = svo.second.z;
+		double v0z = svo.second.z();
 		return vsLevelOutTimes(s0z, v0z, climbRate, targetAlt, accelup, acceldown, allowClimbRateChange);
 	}	
 
@@ -2348,7 +2339,7 @@ public final class Kinematics {
 	public static Tuple5<Double,Double,Double,Double,Double> vsLevelOutTimes(Pair<Vect3, Velocity> svo, double climbRate, double targetAlt, 
 			double a, boolean allowClimbRateChange) {	
 		double s0z = svo.first.z;
-		double v0z = svo.second.z;
+		double v0z = svo.second.z();
 		return vsLevelOutTimes(s0z, v0z, climbRate, targetAlt, a, -a, allowClimbRateChange);
 	}	
 
@@ -2426,7 +2417,7 @@ public final class Kinematics {
 	public static double vsLevelOutClimbRate(Pair<Vect3, Velocity> svo, double climbRate, double targetAlt, 
 			double accelup, double acceldown, boolean allowClimbRateChange) {
 		Tuple5<Double,Double,Double,Double,Double> ntp = vsLevelOutTimes(svo, climbRate, targetAlt, accelup, acceldown, allowClimbRateChange);
-		return vsLevelOutCalculation(svo, targetAlt, ntp.fourth, ntp.fifth, ntp.first, ntp.second, ntp.third, ntp.first).second.z;
+		return vsLevelOutCalculation(svo, targetAlt, ntp.fourth, ntp.fifth, ntp.first, ntp.second, ntp.third, ntp.first).second.z();
 
 	}
 
@@ -2480,13 +2471,13 @@ public final class Kinematics {
 			double targetAlt, double a1, double a2, double t1, double t2, double t3,  double t) {
 		Vect3 s0 = sv0.first;
 		Velocity v0 = sv0.second;
-		double soz = s0.z();
+		double soz = s0.z;
 		double voz = v0.z();
 		Pair<Double, Double> vsL = vsLevelOutCalc(soz,voz, targetAlt, a1, a2, t1, t2, t3, t);
 		double nz = vsL.first;
 		double nvs = vsL.second;
 		Velocity nv = v0.mkVs(nvs);
-		Vect3 ns = s0.linear(v0,t).mkZ(nz);
+		Vect3 ns = s0.linear(v0.vect3(),t).mkZ(nz);
 		return new Pair<>(ns,nv);
 	}	
 
@@ -2553,7 +2544,7 @@ public final class Kinematics {
 	 * @return a StateVector
 	 */
 	public static StateVector vsLevelOutFinal(Pair<Vect3,Velocity> sv0, double climbRate, double targetAlt, double a) {
-		Tuple5<Double, Double,Double,Double,Double> qV = vsLevelOutTimes(sv0.first.z(), sv0.second.z(), climbRate,targetAlt,a,-a,true);
+		Tuple5<Double, Double,Double,Double,Double> qV = vsLevelOutTimes(sv0.first.z, sv0.second.z(), climbRate,targetAlt,a,-a,true);
 		double T1 = qV.first;
 		double T3 = qV.third;
 		if (T1 < 0) {         //  overshoot case
@@ -2600,7 +2591,7 @@ public final class Kinematics {
 			curAccel += accelRate*sign*timeStep;
 			delta -= Math.abs(curAccel)*timeStep;
 			v = v.mkVs(v.vs()+curAccel*timeStep);
-			s = s.AddScal(timeStep, v);
+			s = s.AddScal(timeStep, v.vect3());
 			if (Util.almost_geq(curTime,t, Util.PRECISION5)) return Pair.make(s,v);
 		}
 		while (Util.almost_greater(delta,0.0,Util.PRECISION5)) { // constant accel to halfway point
@@ -2609,7 +2600,7 @@ public final class Kinematics {
 			curTime += timeStep;
 			delta -= Math.abs(curAccel)*timeStep;
 			v = v.mkVs(v.vs()+curAccel*timeStep);
-			s = s.AddScal(timeStep, v); 
+			s = s.AddScal(timeStep, v.vect3()); 
 			if (Util.almost_geq(curTime,t, Util.PRECISION5)) return Pair.make(s,v);
 		}
 		while (halfTime > rampUpTime) { // constant accel past halfway point
@@ -2617,7 +2608,7 @@ public final class Kinematics {
 			halfTime -= timeStep;
 			curTime += timeStep;
 			v = v.mkVs(v.vs()+curAccel*timeStep);
-			s = s.AddScal(timeStep, v); 
+			s = s.AddScal(timeStep, v.vect3()); 
 			if (Util.almost_geq(curTime,t, Util.PRECISION5)) return Pair.make(s,v);
 		}
 		while (Util.almost_greater(Math.abs(curAccel), 0.0, Util.PRECISION5)) {
@@ -2625,12 +2616,12 @@ public final class Kinematics {
 			curTime += timeStep;
 			curAccel -= accelRate*sign*timeStep;
 			v = v.mkVs(v.vs()+curAccel*timeStep);
-			s = s.AddScal(timeStep, v); 
+			s = s.AddScal(timeStep, v.vect3()); 
 			if (Util.almost_geq(curTime,t, Util.PRECISION5)) return Pair.make(s,v);
 		}
 		// linear from here out
 		if (curTime < t) {
-			s = s.AddScal(t-curTime, v);
+			s = s.AddScal(t-curTime, v.vect3());
 		}
 
 		return new Pair<>(s,v);
@@ -2801,7 +2792,7 @@ public final class Kinematics {
 		boolean rtn = false;
 		for (double t = 0; t < stopTime; t = t + step) {
 			Vect3 soAtTm = vsAccelUntil(so, vo, t, nvo.vs(), vsAccelOwn).first;	
-			Vect3 siAtTm = si.linear(vi,t);
+			Vect3 siAtTm = si.linear(vi.vect3(),t);
 			double distH = soAtTm.Sub(siAtTm).vect2().norm();
 			double distV = Math.abs(soAtTm.Sub(siAtTm).z);
 			//f.pln("%% testLoSVs: distH = "+Units.str("nm",distH)+" distV = "+Units.str("ft",distV));
@@ -2873,17 +2864,17 @@ public final class Kinematics {
 			//Velocity vtraf = turnUntilVelocity(vi, nvi.verticalSpeed(), bankAngTraf, t, turnRightTraf);
 			Pair<Vect3,Velocity> psv = turnUntilTrack(so, vo, t, nvo.trk(), bankAngOwn);		
 			Vect3 soAtTm = psv.first;
-			Velocity vown = psv.second;
+			Vect3 vown = psv.second.vect3();
 			Pair<Vect3,Velocity> psvi = turnUntilTrack(si, vi, t, nvi.trk(), bankAngOwn);
 			Vect3 siAtTm = psvi.first;
-			Velocity vtraf = psvi.second;
+			Vect3 vtraf = psvi.second.vect3();
 			//f.pln(" $$$$ minDistBetweenTrk: soAtTm = "+f.sStr(soAtTm)+" siAtTm = "+f.sStr(siAtTm));
 			Vect3 s = soAtTm.Sub(siAtTm);
 			double dist = s.norm();
-			double distH = s.vect2().norm();
-			double distV = Math.abs(s.z);
 			//f.pln(" $$$$ minDistBetweenTrk: t = "+t+"  dist = "+Units.str("nm",dist));
 			if (dist < minDist) {               // compute distances at TCA in 3D
+				double distH = s.vect2().norm();
+				double distV = Math.abs(s.z);
 				minDist = dist;
 				minDistH = distH;
 				minDistV = distV;
@@ -2923,17 +2914,17 @@ public final class Kinematics {
 			Vect3 s = soAtTm.Sub(siAtTm);
 			//f.pln(" $$$$ minDistBetweenTrk: soAtTm = "+f.sStr(soAtTm)+" siAtTm = "+f.sStr(siAtTm));
 			double dist = s.norm();
-			double distH = s.vect2().norm();
-			double distV = Math.abs(s.z);
 			//f.pln(" $$$$ minDistBetweenTrk: dist = "+Units.str("nm",dist));
 			if (dist < minDist) {               // compute distances at TCA in 3D
+				double distH = s.vect2().norm();
+				double distV = Math.abs(s.z);		
 				minDist = dist;
 				minDistH = distH;
 				minDistV = distV;
 				minT = t;
 			}
-			Vect3 vown = gsAccelUntil(so, vo, t, nvo.vs(), gsAccelOwn).second;
-			Vect3 vtraf = gsAccelUntil(si, vi, t, nvi.vs(), gsAccelTraf).second;
+			Vect3 vown = gsAccelUntil(so, vo, t, nvo.vs(), gsAccelOwn).second.vect3();
+			Vect3 vtraf = gsAccelUntil(si, vi, t, nvi.vs(), gsAccelTraf).second.vect3();
 			boolean divg = s.dot(vown.Sub(vtraf)) > 0;
 			if (divg) break;
 		}
@@ -2967,16 +2958,16 @@ public final class Kinematics {
 			//f.pln(" $$$$ minDistBetweenVs: soAtTm = "+f.sStr(soAtTm)+" siAtTm = "+f.sStr(siAtTm));
 			Vect3 s = soAtTm.Sub(siAtTm);
 			double dist = s.norm();
-			double distH = s.vect2().norm();
-			double distV = Math.abs(s.z);
 			if (dist < minDist) {               // compute distances at TCA in 3D
+				double distH = s.vect2().norm();
+				double distV = Math.abs(s.z);
 				minDist = dist;
 				minDistH = distH;
 				minDistV = distV;
 				minT = t;
 			}
-			Vect3 vown = vsAccelUntil(so, vo, t, nvo.vs(), vsAccelOwn).second;
-			Vect3 vtraf = vsAccelUntil(si,vi, t, nvi.vs(), vsAccelTraf).second;
+			Vect3 vown = vsAccelUntil(so, vo, t, nvo.vs(), vsAccelOwn).second.vect3();
+			Vect3 vtraf = vsAccelUntil(si,vi, t, nvi.vs(), vsAccelTraf).second.vect3();
 			boolean divg = s.dot(vown.Sub(vtraf)) > 0;
 			if (divg) break;
 			//f.pln(" $$$$ minDistBetweenVs: t = "+t+" dist = "+Units.str("nm",dist)+" divg = "+divg);

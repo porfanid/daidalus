@@ -18,7 +18,6 @@
 #include "Vect2.h"
 #include "Velocity.h"
 #include "Position.h"
-#include "Point.h"
 #include "Util.h"
 
 namespace larcfm {
@@ -65,7 +64,7 @@ namespace larcfm {
      * 
      * @param lla reference point
      */
-    OrthographicProjection(const LatLonAlt& lla);
+    explicit OrthographicProjection(const LatLonAlt& lla);
     
     /** Create a projection around the given reference point. 
      * 

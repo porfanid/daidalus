@@ -230,7 +230,7 @@ public final class LatLonAlt {
 	/** Return altitude in [ft] 
 	 * @return altitude in feet
 	 * */
-	public double altitude() {
+	public double altitude_ft() {
 		return Units.to(Units.ft, alti);
 	}	
 
@@ -265,9 +265,9 @@ public final class LatLonAlt {
 	 * @return new lat/lon position in direction v0
 	 */
 	public LatLonAlt linearEst(Velocity vo, double tm) {
-		double dn = vo.Scal(tm).y();
-		double de = vo.Scal(tm).x();
-		double nAlt = alti + vo.z*tm;
+		double dn = vo.vect3().Scal(tm).y;
+		double de = vo.vect3().Scal(tm).x;
+		double nAlt = alti + vo.z()*tm;
 		return linearEst(dn,de).mkAlt(nAlt);   
 	}
 
@@ -387,7 +387,7 @@ public final class LatLonAlt {
 		ArrayList<String> ret = new ArrayList<String>(3);
 		ret.add(f.FmPrecision(latitude(), precision));
 		ret.add(f.FmPrecision(longitude(), precision));
-		ret.add(f.FmPrecision(altitude(), precision));
+		ret.add(f.FmPrecision(altitude_ft(), precision));
 		return ret;
 	}
 

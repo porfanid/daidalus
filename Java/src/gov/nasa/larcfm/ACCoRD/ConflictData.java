@@ -10,7 +10,6 @@ import gov.nasa.larcfm.Util.LossData;
 import gov.nasa.larcfm.Util.Units;
 import gov.nasa.larcfm.Util.Util;
 import gov.nasa.larcfm.Util.Vect3;
-import gov.nasa.larcfm.Util.Velocity;
 import gov.nasa.larcfm.Util.f;
 
 public class ConflictData extends LossData {
@@ -18,9 +17,9 @@ public class ConflictData extends LossData {
 	final protected double time_crit; // relative time to critical point
 	final protected double dist_crit; // distance or severity at critical point (0 is most critical, +inf is least severe)
 	final private Vect3  s_; // Relative position
-	final private Velocity v_; // Relative velocity
+	final private Vect3 v_; // Relative velocity
 
-	public ConflictData(double t_in, double t_out, double t_crit, double d_crit, Vect3 s, Velocity v) {
+	public ConflictData(double t_in, double t_out, double t_crit, double d_crit, Vect3 s, Vect3 v) {
 		super(t_in, t_out);
 		time_crit = t_crit;
 		dist_crit = d_crit;
@@ -33,7 +32,7 @@ public class ConflictData extends LossData {
 		time_crit = Double.POSITIVE_INFINITY;
 		dist_crit = Double.POSITIVE_INFINITY;
 		s_ = Vect3.INVALID;
-		v_ = Velocity.INVALID;
+		v_ = Vect3.INVALID;
 	}
 
 	public static final ConflictData EMPTY = new ConflictData();
@@ -42,7 +41,7 @@ public class ConflictData extends LossData {
 		return !s_.isInvalid() && !v_.isInvalid();
 	}
 
-	public ConflictData(LossData ld, double t_crit, double d_crit, Vect3 s, Velocity v) {
+	public ConflictData(LossData ld, double t_crit, double d_crit, Vect3 s, Vect3 v) {
 		super(ld.getTimeIn(), ld.getTimeOut());
 		time_crit = t_crit;
 		dist_crit = d_crit;
@@ -60,7 +59,7 @@ public class ConflictData extends LossData {
 	/**
 	 * Returns internal vector representation of relative aircraft velocity.
 	 */
-	public Velocity get_v() {
+	public Vect3 get_v() {
 		return v_;
 	}
 
@@ -181,7 +180,7 @@ public class ConflictData extends LossData {
 	 * When aircraft are diverging, tcpa is defined as 0
 	 */
 	public double tcpa3D() {
-		return Vect3.tcpa(s_,Vect3.ZERO,v_,Velocity.ZERO);
+		return Vect3.tcpa(s_,Vect3.ZERO,v_,Vect3.ZERO);
 	}
 
 	/**

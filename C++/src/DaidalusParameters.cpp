@@ -21,7 +21,7 @@
 
 namespace larcfm {
 
-const std::string DaidalusParameters::VERSION = "2.0.3";
+const std::string DaidalusParameters::VERSION = "2.0.4";
 const INT64FM DaidalusParameters::ALMOST_ = PRECISION5;
 bool DaidalusParameters::initialized = false;
 
@@ -45,6 +45,9 @@ DaidalusParameters::DaidalusParameters() : error("DaidalusParameters") {
 
   right_hdir_ = Units::from("deg",180.0);
   units_["right_hdir"] = "deg";
+
+  min_airspeed_  = Units::from("knot",10.0);  
+	units_["min_airspeed"] = "knot";
 
   min_hs_  = Units::from("knot",10.0);
   units_["min_hs"] = "knot";
@@ -199,6 +202,9 @@ DaidalusParameters::DaidalusParameters() : error("DaidalusParameters") {
   units_["dta_height"] = "ft";
   dta_alerter_  = 0;
 
+  // Horizontal Direction Bands Logic When Below Min Airspeed
+  hdir_bands_below_min_as_ = 0;
+
   // Alerting logic
   ownship_centric_alerting_ = true;
 
@@ -281,9 +287,9 @@ int DaidalusParameters::addAlerter(const Alerter& alerter) {
  */
 void DaidalusParameters::set_alerter_with_SUM_parameters(Alerter& alerter) {
   for (int level=1; level <= alerter.mostSevereAlertLevel(); ++level) {
-    Detection3D* det = alerter.getDetectorPtr(level);
-    if (det != NULL && larcfm::equals(det->getSimpleClassName(),"WCV_TAUMOD_SUM")) {
-      ((WCV_TAUMOD_SUM*)det)->set_global_SUM_parameters(*this);
+    const Detection3D& det = alerter.getDetector(level);
+    if (det.isValid() && larcfm::equals(det.getSimpleClassName(),"WCV_TAUMOD_SUM")) {
+      ((WCV_TAUMOD_SUM&)det).set_global_SUM_parameters(*this);
     }
   }
 }
@@ -323,7 +329,20 @@ double DaidalusParameters::getRightHorizontalDirection() const {
 double DaidalusParameters::getRightHorizontalDirection(const std::string& u) const {
   return Units::to(u,getRightHorizontalDirection());
 }
+ 
+/** 
+ * @return minimum airspeed speed in internal units [m/s]. 
+ */
+double DaidalusParameters::getMinAirSpeed() const {
+			return min_airspeed_;
+}
 
+/** 
+ * @return minimum air speed in specified units [u].
+ */
+double DaidalusParameters::getMinAirSpeed(const std::string& u) const {
+		return Units::to(u,getMinAirSpeed());
+}
 
 double DaidalusParameters::getMinHorizontalSpeed() const {
   return min_hs_;
@@ -728,7 +747,34 @@ bool DaidalusParameters::setRightHorizontalDirection(double val, const std::stri
   return setRightHorizontalDirection(Units::from(u,val));
 }
 
+/** 
+ * Set minimum air speed to value in internal units [m/s].
+ * Minimum air speed must be greater or equal than min horizontal speed.
+ */
+bool DaidalusParameters::setMinAirSpeed(double val) {
+	if (error.isNonNegative("setMinAirSpeed",val)) {
+		min_airspeed_ = val;
+		return true;
+	}
+	return false;
+}
 
+/** 
+ * Set minimum air speed to value in specified units [u].
+ * Minimum air speed must be greater or equal than min horizontal speed.
+ */
+bool DaidalusParameters::setMinAirSpeed(double val, const std::string& u) {
+	if (setMinAirSpeed(Units::from(u,val))) {
+		units_["min_airspeed"] = u;
+		return true;
+	}
+	return false;
+}
+
+/**
+ * Set minimum horizontal speed to value in internal units [m/s].
+ * Minimum horizontal speed must be non-negative.
+ */
 bool DaidalusParameters::setMinHorizontalSpeed(double val) {
   if (error.isNonNegative("setMinHorizontalSpeed",val)) {
     min_hs_ = val;
@@ -737,7 +783,10 @@ bool DaidalusParameters::setMinHorizontalSpeed(double val) {
   return false;
 }
 
-
+/**
+ * Set minimum horizontal speed to value in specified units.
+ * Minimum horizontal speed must be non-negative.
+ */
 bool DaidalusParameters::setMinHorizontalSpeed(double val, const std::string& u) {
   if (setMinHorizontalSpeed(Units::from(u,val))) {
     units_["min_hs"] = u;
@@ -1621,12 +1670,12 @@ bool DaidalusParameters::setHorizontalContourThreshold(double val, const std::st
 }
 
 /**
- * DTA Logic:
+ * Get DTA Logic:
  * 0: Disabled
- * 1: Enabled special DTA maneuver guidance. Horizontal recovery is fully enabled,
+ * 1: Enabled special DTA maneuver guidance. Horizontal recovery is enabled,
  * but vertical recovery blocks down resolutions when alert is higher than corrective.
  * -1: Enabled special DTA maneuver guidance. Horizontal recovery is disabled,
- * vertical recovery blocks down resolutions when raw alert is higher than corrective.
+ * vertical recovery blocks down resolutions when alert is higher than corrective.
  * NOTE:
  * When DTA logic is enabled, DAIDALUS automatically switches to DTA alerter and to
  * special maneuver guidance, when aircraft enters DTA volume (depending on ownship- vs
@@ -1637,12 +1686,12 @@ int DaidalusParameters::getDTALogic() const {
 }
 
 /**
- * DTA Logic:
+ * Set DTA Logic:
  * 0: Disabled
- * 1: Enabled special DTA maneuver guidance. Horizontal recovery is fully enabled,
+ * 1: Enabled special DTA maneuver guidance. Horizontal recovery is enabled,
  * but vertical recovery blocks down resolutions when alert is higher than corrective.
  * -1: Enabled special DTA maneuver guidance. Horizontal recovery is disabled,
- * vertical recovery blocks down resolutions when raw alert is higher than corrective.
+ * vertical recovery blocks down resolutions when alert is higher than corrective.
  * NOTE:
  * When DTA logic is enabled, DAIDALUS automatically switches to DTA alerter and to
  * special maneuver guidance, when aircraft enters DTA volume (depending on ownship- vs
@@ -1777,6 +1826,26 @@ int DaidalusParameters::getDTAAlerter() const {
  */
 void DaidalusParameters::setDTAAlerter(int alerter) {
   dta_alerter_ = alerter;
+}
+
+/**
+ * Get Horizontal Direction Bands Logic When Below Min Airspeed: 
+ * 0: Horizontal direction bands disabled when airspeed is below min_airspeed
+ * 1: Instantaneous horizontal direction bands computed assuming min_airspeed 
+ * -1; Kinematic horizontal direction bands computed assumming min_airspeed
+*/
+int DaidalusParameters::getHorizontalDirBandsBelowMinAirspeed() const {
+  return hdir_bands_below_min_as_;
+}
+
+/**
+ * Set Horizontal Direction Bands Logic When Below Min Airspeed: 
+ * 0: Horizontal direction bands disabled when airspeed is below min_airspeed
+ * 1: Instantaneous horizontal direction bands computed assuming min_airspeed 
+ * -1; Kinematic horizontal direction bands computed assumming min_airspeed
+*/
+void DaidalusParameters::setHorizontalDirBandsBelowMinAirspeed(int val) {
+  hdir_bands_below_min_as_ = val;
 }
 
 void DaidalusParameters::setAlertingLogic(bool ownship_centric) {
@@ -1957,6 +2026,7 @@ std::string DaidalusParameters::toPVS() const {
   s+="lookahead_time := "+FmPrecision(lookahead_time_)+", ";
   s+="left_hdir := "+FmPrecision(left_hdir_)+", ";
   s+="right_hdir := "+FmPrecision(right_hdir_)+", ";
+  s+="min_airspeed := "+FmPrecision(min_airspeed_)+", ";
   s+="min_hs := "+FmPrecision(min_hs_)+", ";
   s+="max_hs := "+FmPrecision(max_hs_)+", ";
   s+="min_vs := "+FmPrecision(min_vs_)+", ";
@@ -2013,6 +2083,7 @@ std::string DaidalusParameters::toPVS() const {
   s+="dta_radius := "+FmPrecision(dta_radius_)+", ";
   s+="dta_height := "+FmPrecision(dta_height_)+", ";
   s+="dta_alerter := "+Fmi(dta_alerter_)+", ";
+  s+="hdir_bands_below_min_as := "+Fmi(hdir_bands_below_min_as_)+", ";
   s+="ownship_centric_alerting := "+Fmb(ownship_centric_alerting_)+", ";
   s+="bands_add_time_to_maneuver := "+Fmb(bands_add_time_to_maneuver_)+", ";
   s+="corrective_region := "+BandsRegion::to_string(corrective_region_)+", ";
@@ -2049,6 +2120,7 @@ void DaidalusParameters::updateParameterData(ParameterData& p) const {
   p.updateComment("lookahead_time","Bands Parameters");
   p.setInternal("left_hdir", left_hdir_, getUnitsOf("left_hdir"));
   p.setInternal("right_hdir", right_hdir_, getUnitsOf("right_hdir"));
+  p.setInternal("min_airspeed", min_airspeed_, getUnitsOf("min_airspeed"));
   p.setInternal("min_hs", min_hs_, getUnitsOf("min_hs"));
   p.setInternal("max_hs", max_hs_, getUnitsOf("max_hs"));
   p.setInternal("min_vs", min_vs_, getUnitsOf("min_vs"));
@@ -2126,12 +2198,16 @@ void DaidalusParameters::updateParameterData(ParameterData& p) const {
 
   // DAA Terminal Area (DTA)
   p.setInt("dta_logic", dta_logic_);
-  p.updateComment("dta_logic","DAA Terminal Area (DTA)");
+ 	p.updateComment("dta_logic","DAA Terminal Area Logic (0:Disabled, 1:Horizontal Recovery Enabled, -1:Horizontal Recovery Disabled)");
   p.setInternal("dta_latitude", dta_latitude_, getUnitsOf("dta_latitude"));
   p.setInternal("dta_longitude", dta_longitude_, getUnitsOf("dta_longitude"));
   p.setInternal("dta_radius", dta_radius_, getUnitsOf("dta_radius"));
   p.setInternal("dta_height", dta_height_, getUnitsOf("dta_height"));
   p.setInt("dta_alerter", dta_alerter_);
+
+  // Horizontal Direction Bands Logic When Below Min Airspeed
+  p.setInt("hdir_bands_below_min_as", hdir_bands_below_min_as_);
+  p.updateComment("hdir_bands_below_min_as", "Horizontal Direction Bands Logic When Below Min Airspeed (O:Disabled, 1:Instantaneous, -1:Kinematic)");
 
   // Alerting logic
   p.setBool("ownship_centric_alerting",ownship_centric_alerting_);
@@ -2146,7 +2222,7 @@ bool DaidalusParameters::contains(const ParameterData& p, const std::string& key
   private:
     const ParameterData& p_;
   public:
-    Contains(const ParameterData& p) : p_(p) {}
+    explicit Contains(const ParameterData& p) : p_(p) {}
     bool apply(const std::string& key) { return p_.contains(key); }
   };
   Contains f(p);
@@ -2158,7 +2234,7 @@ std::string DaidalusParameters::getUnit(const ParameterData& p,const std::string
   private:
     const ParameterData& p_;
   public:
-    GetUnit(const ParameterData& p) : p_(p) {}
+    explicit GetUnit(const ParameterData& p) : p_(p) {}
     std::string apply(const std::string& key) { return p_.getUnit(key); }
   };
   GetUnit f(p);
@@ -2170,7 +2246,7 @@ double DaidalusParameters::getValue(const ParameterData& p,const std::string& ke
   private:
     const ParameterData& p_;
   public:
-    GetValue(const ParameterData& p) : p_(p) {}
+    explicit GetValue(const ParameterData& p) : p_(p) {}
     double apply(const std::string& key) { return p_.getValue(key); }
   };
   GetValue f(p);
@@ -2182,7 +2258,7 @@ bool DaidalusParameters::getBool(const ParameterData& p,const std::string& key) 
   private:
     const ParameterData& p_;
   public:
-    GetBool(const ParameterData& p) : p_(p) {}
+    explicit GetBool(const ParameterData& p) : p_(p) {}
     bool apply(const std::string& key) { return p_.getBool(key); }
   };
   GetBool f(p);
@@ -2194,7 +2270,7 @@ int DaidalusParameters::getInt(const ParameterData& p,const std::string& key) {
   private:
     const ParameterData& p_;
   public:
-    GetInt(const ParameterData& p) : p_(p) {}
+    explicit GetInt(const ParameterData& p) : p_(p) {}
     int apply(const std::string& key) { return p_.getInt(key); }
   };
   GetInt f(p);
@@ -2206,7 +2282,7 @@ std::string DaidalusParameters::getString(const ParameterData& p,const std::stri
   private:
     const ParameterData& p_;
   public:
-    GetString(const ParameterData& p) : p_(p) {}
+    explicit GetString(const ParameterData& p) : p_(p) {}
     std::string apply(const std::string& key) { return p_.getString(key); }
   };
   GetString f(p);
@@ -2218,7 +2294,7 @@ std::vector<std::string> DaidalusParameters::getListString(const ParameterData& 
   private:
     const ParameterData& p_;
   public:
-    GetListString(const ParameterData& p) : p_(p) {}
+    explicit GetListString(const ParameterData& p) : p_(p) {}
     std::vector<std::string> apply(const std::string& key) { return p_.getListString(key); }
   };
   GetListString f(p);
@@ -2255,6 +2331,11 @@ bool DaidalusParameters::setParameterData(const ParameterData& p) {
     units_["right_hdir"] = getUnit(p,"right_hdir");
     setit = true;
   }
+  if (contains(p,"min_airspeed")) { 
+		setMinAirSpeed(getValue(p,"min_airspeed"));
+		units_["min_airspeed"] = getUnit(p,"min_airspeed");
+		setit = true;
+	} 
   if (contains(p,"min_hs")) {
     setMinHorizontalSpeed(getValue(p,"min_hs"));
     units_["min_hs"] = getUnit(p,"min_hs");
@@ -2526,6 +2607,11 @@ bool DaidalusParameters::setParameterData(const ParameterData& p) {
   if (contains(p,"dta_alerter")) {
     setDTAAlerter(getInt(p,"dta_alerter"));
     setit = true;
+  }
+  // Horizontal Direction Bands Logic When Below Min Airspeed
+  if (contains(p,"hdir_bands_below_min_as")) {
+    setHorizontalDirBandsBelowMinAirspeed(getInt(p,"hdir_bands_below_min_as"));
+    setit = true;				
   }
   // Alerting logic
   if (contains(p,"ownship_centric_alerting")) {

@@ -404,7 +404,7 @@ double Util::to_180(double deg) {
 }
 
 
-bool Util::less_or_equal(std::string s1, std::string s2) {
+bool Util::less_or_equal(const std::string& s1, const std::string& s2) {
 	if (s1.compare(s2) >= 0) return true;
 	return false;
 }
@@ -523,8 +523,8 @@ double Util::decimalDegrees(const std::string& degMinSec) {
  * Accepts hh:mm:ss, mm:ss, and ss.
  */
 double Util::parse_time(const string& s) {
-	double tm = -1;
 	try {
+		double tm = -1.0;
 		string patternStr = "[:]";
 		vector<std::string> fields2 = split(s, patternStr);
 		if (fields2.size() >= 3) {
@@ -535,7 +535,7 @@ double Util::parse_time(const string& s) {
 			tm = parse_double(fields2[0]); //getColumn(_sec, head[TM_CLK]);
 		}
 		return tm;
-	} catch (std::runtime_error e) {
+	} catch (std::runtime_error const& e) {
 		return -1.0;
 	}
 }

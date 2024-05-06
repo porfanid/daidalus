@@ -17,6 +17,7 @@
 #include "NoneUrgencyStrategy.h"
 #include "TrafficState.h"
 #include "DaidalusParameters.h"
+#include "SpecialBandFlags.h"
 #include <map>
 #include <vector>
 #include <string>
@@ -37,18 +38,13 @@ public:
   /* Current time */
   double current_time;
   /* Wind vector in TO direction */
-  Velocity wind_vector;
+  Vect3 wind_vector;
+  /* Kinematic bands parameters */
   DaidalusParameters parameters;
-
   /* Strategy for most urgent aircraft */
-  const UrgencyStrategy* get_urgency_strategy() const;
-  bool set_urgency_strategy(const UrgencyStrategy* strat);
+  std::unique_ptr<UrgencyStrategy> urgency_strategy;
 
-private:
-
-  /* Strategy for most urgent aircraft */
-  const UrgencyStrategy* urgency_strategy_;
-
+  private:
   /**** CACHED VARIABLES ****/
 
   /* Variable to control re-computation of cached values */
@@ -59,19 +55,19 @@ private:
   int epsh_;
   /* Cached vertical epsilon for implicit coordination */
   int epsv_;
-  /* Cached value of DTA status given current aircraft states.
-   *  0 : Not in DTA
-   * -1 : In DTA, but special bands are not enabled yet
-   *  1 : In DTA and special bands are enabled
+  /* Cached value of special bands flag: below min airsped and dta status	*/
+	SpecialBandFlags special_band_flags_; 
+  /* 
+   * Cached lists of aircraft indices, alert_levels, and lookahead times sorted by indices, contributing to conflict (non-peripheral)
+   * band listed per conflict bands, where 0th:NEAR, 1th:MID, 2th:FAR 
    */
-  int dta_status_;
-  /* Cached lists of aircraft indices, alert_levels, and lookahead times sorted by indices, contributing to conflict (non-peripheral)
-   * band listed per conflict bands, where 0th:NEAR, 1th:MID, 2th:FAR */
   std::vector<std::vector<IndexLevelT> > acs_conflict_bands_;
   /* Cached list of time to violation per conflict bands, where 0th:NEAR, 1th:MID, 2th:FAR */
   Interval tiov_[BandsRegion::NUMBER_OF_CONFLICT_BANDS];
-  /* Cached list of bool alues indicating which bands should be computed, where 0th:NEAR, 1th:MID, 2th:FAR.
-   * NaN means that bands are not computed for that region*/
+  /* 
+   * Cached list of bool alues indicating which bands should be computed, where 0th:NEAR, 1th:MID, 2th:FAR.
+   * NaN means that bands are not computed for that region
+   */
   bool bands4region_[BandsRegion::NUMBER_OF_CONFLICT_BANDS];
 
   /**** HYSTERESIS VARIABLES ****/
@@ -79,22 +75,25 @@ private:
   // Alerting and DTA hysteresis per aircraft's ids
   std::map<std::string,HysteresisData> alerting_hysteresis_acs_;
   std::map<std::string,HysteresisData> dta_hysteresis_acs_;
+  HysteresisData below_min_as_hysteresis_; // Below min airspeed Hysteris
 
   void copyFrom(const DaidalusCore& core);
   void refresh_mua_eps();
 
+  int below_min_as_hysteresis_current_value();
+
 public:
   DaidalusCore();
-  virtual ~DaidalusCore() {
-    delete urgency_strategy_;
-  };
+
+  virtual ~DaidalusCore() {}
+
   DaidalusCore& operator=(const DaidalusCore& core);
 
   DaidalusCore(const DaidalusCore& core);
 
-  DaidalusCore(const Alerter& alerter);
+  explicit DaidalusCore(const Alerter& alerter);
 
-  DaidalusCore(const Detection3D* det, double T);
+  DaidalusCore(const Detection3D& det, double T);
 
   /**
    *  Clear ownship and traffic data from this object.
@@ -130,13 +129,7 @@ public:
    */
   void refresh();
 
-  /**
-   * Returns DTA status:
-   *  0 : DTA is not active
-   * -1 : DTA is active, but special bands are not enabled yet
-   *  1 : DTA is active and special bands are enabled
-   */
-  int DTAStatus();
+  const SpecialBandFlags& getSpecialBandFlags();
 
   /**
    * @return most urgent aircraft for implicit coordination
@@ -180,7 +173,7 @@ public:
    */
   double minVerticalRecovery() const;
 
-  void set_ownship_state(const std::string& id, const Position& pos, const Velocity& vel, double time);
+  void set_ownship_state(const std::string& id, const Position& pos, const Velocity& vel, const Velocity& airvel, double time);
 
   // Return 0-based index in traffic list (-1 if aircraft doesn't exist)
   int find_traffic_state(const std::string& id) const;
@@ -194,7 +187,9 @@ public:
   // idx is 0-based index in traffic list
   bool remove_traffic(int idx);
 
-  void set_wind_velocity(const Velocity& wind);
+  void set_ownship_airvelocity(double heading, double airspeed);
+  
+  void set_wind_velocity(const Vect3& wind);
 
   bool linear_projection(double offset);
 
@@ -295,7 +290,7 @@ public:
 
   TrafficState recovery_ac();
 
-  std::string outputStringAircraftStates(bool internal) const;
+  std::string outputStringAircraftStates(bool internal, bool header) const;
 
   std::string rawString() const;
 

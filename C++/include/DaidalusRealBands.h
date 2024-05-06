@@ -94,7 +94,7 @@ public:
 
   DaidalusRealBands(const DaidalusRealBands& b);
 
-  virtual bool get_recovery(const DaidalusParameters& parameters) const = 0;
+  virtual bool do_recovery(const DaidalusParameters& parameters) const = 0;
 
   virtual double get_step(const DaidalusParameters& parameters) const = 0;
 
@@ -114,10 +114,9 @@ public:
 
   virtual double max_delta_resolution(const DaidalusParameters& parameters) const = 0;
 
-  virtual bool saturate_corrective_bands(const DaidalusParameters& parameters, int dta_status) const;
+  virtual bool saturate_corrective_bands(const DaidalusParameters& parameters, const SpecialBandFlags& special_flags) const = 0;
 
-  // If necessary to be defined by the subclasses
-  virtual void set_special_configuration(const DaidalusParameters& parameters, int dta_status) {}
+  virtual void set_special_configuration(const DaidalusParameters& parameters, const SpecialBandFlags& special_flags) = 0;
 
   double get_min_val_() const;
 
@@ -137,11 +136,11 @@ private:
 
   double max_rel(const DaidalusParameters& parameters) const;
 
-  bool set_input(const DaidalusParameters& parameters, const TrafficState& ownship, int dta_status);
+  bool set_input(const DaidalusParameters& parameters, const TrafficState& ownship, const SpecialBandFlags& special_flags);
 
 public:
   bool kinematic_conflict(const DaidalusParameters& parameters, const TrafficState& ownship, const TrafficState& traffic,
-      Detection3D* detector, int epsh, int epsv, double alerting_time, int dta_status);
+      const Detection3D& detector, int epsh, int epsv, double alerting_time, const SpecialBandFlags& special_flags);
 
   int length(DaidalusCore& core);
 
@@ -226,7 +225,7 @@ private:
    * The epsilon parameters for coordinations are handled according to the recovery_case flag.
    */
   void compute_none_bands(IntervalSet& none_set_region, const std::vector<IndexLevelT>& ilts,
-      Detection3D* det, Detection3D* recovery,
+      const Detection3D& det, const Detection3D& recovery,
       bool recovery_case, double B, DaidalusCore& core);
 
   /**
@@ -306,22 +305,22 @@ public:
    * The output parameter noneset has a list of non-conflict ranges orderd within [min,max]
    * values (or [0,mod] in the case of circular bands, i.e., when mod == 0).
    */
-  virtual void none_bands(IntervalSet& noneset, const Detection3D* conflict_det, const Detection3D* recovery_det,
+  virtual void none_bands(IntervalSet& noneset, const Detection3D& conflict_det, const Detection3D& recovery_det,
       int epsh, int epsv, double B, double T, const DaidalusParameters& parameters, const TrafficState& ownship, const TrafficState& traffic) const;
 
-  virtual bool any_red(const Detection3D* conflict_det, const Detection3D* recovery_det,
+  virtual bool any_red(const Detection3D& conflict_det, const Detection3D& recovery_det,
       int epsh, int epsv, double B, double T, const DaidalusParameters& parameters, const TrafficState& ownship, const TrafficState& traffic) const;
 
-  virtual bool all_red(const Detection3D* conflict_det, const Detection3D* recovery_det,
+  virtual bool all_red(const Detection3D& conflict_det, const Detection3D& recovery_det,
       int epsh, int epsv, double B, double T, const DaidalusParameters& parameters, const TrafficState& ownship, const TrafficState& traffic) const;
 
-  bool all_green(const Detection3D* conflict_det, const Detection3D* recovery_det,
+  bool all_green(const Detection3D& conflict_det, const Detection3D& recovery_det,
       int epsh, int epsv, double B, double T, const DaidalusParameters& parameters, const TrafficState& ownship, const TrafficState& traffic) const;
 
-  bool any_green(const Detection3D* conflict_det, const Detection3D* recovery_det,
+  bool any_green(const Detection3D& conflict_det, const Detection3D& recovery_det,
       int epsh, int epsv, double B, double T, const DaidalusParameters& parameters, const TrafficState& ownship, const TrafficState& traffic) const;
 
-  std::string rawString() const;
+  virtual std::string rawString() const;
 
   std::string toString() const;
 

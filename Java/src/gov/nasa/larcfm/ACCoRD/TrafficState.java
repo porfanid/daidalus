@@ -12,6 +12,7 @@ import gov.nasa.larcfm.Util.EuclideanProjection;
 import gov.nasa.larcfm.Util.Position;
 import gov.nasa.larcfm.Util.Projection;
 import gov.nasa.larcfm.Util.Units;
+import gov.nasa.larcfm.Util.Util;
 import gov.nasa.larcfm.Util.Vect3;
 import gov.nasa.larcfm.Util.Velocity;
 import gov.nasa.larcfm.Util.f;
@@ -21,7 +22,7 @@ public class TrafficState {
 
 	private final String id_;
 	private Position pos_;
-	private Velocity gvel_; // Ground velocity
+	private Velocity gvel_; 	  // Ground velocity
 	private Velocity avel_;       // Air velocity
 	private EuclideanProjection eprj_; // Projection 
 	private int alerter_;         // Index to alert levels used by this aircraft
@@ -53,15 +54,16 @@ public class TrafficState {
 	 * @param id Aircraft's identifier
 	 * @param pos Aircraft's position 
 	 * @param vel Aircraft's ground velocity
+	 * @param airvel Aircraft's air velocity
 	 */
-	private TrafficState(String id, Position pos, Velocity vel) {
+	private TrafficState(String id, Position pos, Velocity vel, Velocity airvel) {
 		id_ = id;
 		pos_ = pos;
 		gvel_ = vel;
-		avel_ = vel;
+		avel_ = airvel;
 		posxyz_ = pos;
 		sxyz_ = pos.vect3();
-		velxyz_ = vel;
+		velxyz_ = airvel;
 		eprj_ = Projection.createProjection(Position.ZERO_LL);
 		alerter_ = 1;
 		sum_ = new SUMData();
@@ -81,9 +83,8 @@ public class TrafficState {
 		avel_ = vel;
 		if (pos.isLatLon()) {
 			sxyz_ = eprj.project(pos);
-			Velocity v = eprj.projectVelocity(pos,vel);
 			posxyz_ = Position.make(sxyz_);
-			velxyz_ = Velocity.make(v);
+			velxyz_ = eprj.projectVelocity(pos,vel);
 		} else {
 			posxyz_ = pos;
 			sxyz_ = pos.vect3();
@@ -108,11 +109,20 @@ public class TrafficState {
 		sum_ = new SUMData(ac.sum_);
 	}
 
-	// Set air velocity to new_avel
-	public void setAirVelocity(Velocity new_avel) {
-		Velocity wind = windVector();
-		avel_ = new_avel;
-		gvel_ = new_avel.Add(wind);
+	// Set air velocity to airvel. This method sets ground speed appropriately based on current wind
+	public void setAirVelocity(Velocity airvel) {
+		Vect3 wind = windVector();
+		avel_ = airvel;
+		gvel_ = airvel.Add(wind);
+		applyEuclideanProjection();
+	}
+
+	/**
+	 * Reset air velocity.  
+	 * @param airvel New air velocity
+	 */
+	public void resetAirVelocity(Velocity airvel) {
+		avel_ = airvel;
 		applyEuclideanProjection();
 	}
 
@@ -131,7 +141,7 @@ public class TrafficState {
 			sxyz_ = eprj_.project(pos_);
 			Velocity v = eprj_.projectVelocity(pos_,avel_);
 			posxyz_ = Position.make(sxyz_);	
-			velxyz_ = Velocity.make(v);
+			velxyz_ = v;
 		} else {
 			posxyz_ = pos_;
 			sxyz_ = pos_.vect3();
@@ -154,10 +164,11 @@ public class TrafficState {
 	 * @param id Ownship's identifier
 	 * @param pos Ownship's position
 	 * @param vel Ownship's ground velocity
+	 * @param airvel Ownship's air velocity
 	 */
 
-	public static TrafficState makeOwnship(String id, Position pos, Velocity vel) {
-		TrafficState ac = new TrafficState(id,pos,vel);
+	public static TrafficState makeOwnship(String id, Position pos, Velocity vel, Velocity airvel) {
+		TrafficState ac = new TrafficState(id,pos,vel,airvel);
 		ac.setAsOwnship();
 		return ac;
 	}
@@ -191,7 +202,7 @@ public class TrafficState {
 	 * @param alerter
 	 */
 	public void setAlerterIndex(int alerter) {
-		alerter_ = Math.max(0,alerter);
+		alerter_ = Util.max(0,alerter);
 	}
 
 	/**
@@ -205,21 +216,17 @@ public class TrafficState {
 	 * Set wind velocity 
 	 * @param wind_vector Wind velocity specified in the TO direction
 	 */
-	public void applyWindVector(Velocity wind_vector) {
+	public void applyWindVector(Vect3 wind_vector) {
 		avel_ = gvel_.Sub(wind_vector);
-		if (isLatLon()) {
-			applyEuclideanProjection();
-		} else {
-			velxyz_ = avel_;
-		}  
+		applyEuclideanProjection();
 	}
 
 	/**
 	 * Return wind velocity in the to direction
 	 * @return
 	 */
-	public Velocity windVector() {
-		return gvel_.Sub(avel_);
+	public Vect3 windVector() {
+		return gvel_.vect3().Sub(avel_.vect3());
 	}
 
 	/**
@@ -233,8 +240,8 @@ public class TrafficState {
 		return sxyz_;
 	}
 
-	public Velocity get_v() {
-		return velxyz_;
+	public Vect3 get_v() {
+		return velxyz_.vect3();
 	}
 
 	public Vect3 pos_to_s(Position p) {
@@ -247,14 +254,14 @@ public class TrafficState {
 		return p.vect3();
 	}
 
-	public Velocity vel_to_v(Position p,Velocity v) {
+	public Vect3 vel_to_v(Position p,Velocity v) {
 		if (p.isLatLon()) {
 			if (!pos_.isLatLon()) {
-				return Velocity.INVALID;
+				return Vect3.INVALID;
 			}     
-			return eprj_.projectVelocity(p,v);
+			return eprj_.projectVelocity(p,v).vect3();
 		} 
-		return v;
+		return v.vect3();
 	}
 
 	public Velocity inverseVelocity(Velocity v) {
@@ -263,13 +270,13 @@ public class TrafficState {
 
 	/**
 	 * Project aircraft state offset time, which can be positive or negative, in the direction of the
-	 * air velocity. This methods doesn't change ownship, i.e., the resulting aircraft is considered as 
-	 * another intruder.
+	 * ground velocity. This methods doesn't change the current aircraft, i.e., the resulting aircraft is considered as 
+	 * another aircraft.
 	 * @param offset Offset time.
 	 * @return Projected aircraft.
 	 */
 	public TrafficState linearProjection(double offset) {
-		Position new_pos = pos_.linear(avel_,offset);
+		Position new_pos = pos_.linear(gvel_,offset);
 		TrafficState ac = new TrafficState(this);
 		ac.setPosition(new_pos);
 		return ac;
@@ -304,21 +311,25 @@ public class TrafficState {
 		return s+"}";
 	}
 
-	public String formattedHeader(String utrk, String uxy, String ualt, String ugs, String uvs) {
+	public static String formattedHeader(boolean latlon, String utrk, String uxy, String ualt, String ugs, String uvs) {
 		String s1="NAME";
 		String s2="[none]";
-		if (pos_.isLatLon()) {
-			s1 += " lat lon alt trk gs vs";
-			s2 += " [deg] [deg] ["+ualt+"] ["+utrk+"] ["+ugs+"] ["+uvs+"]";
+		if (latlon) {
+			s1 += " lat lon alt trk gs vs heading airspeed";
+			s2 += " [deg] [deg] ["+ualt+"] ["+utrk+"] ["+ugs+"] ["+uvs+"] ["+utrk+"] ["+ugs+"]";
 		} else {
-			s1 += " sx sy sz trk gs vs";
-			s2 += " ["+uxy+"] ["+uxy+"] ["+ualt+"] ["+utrk+"] ["+ugs+"] ["+uvs+"]";
+			s1 += " sx sy sz trk gs vs heading airspeed";
+			s2 += " ["+uxy+"] ["+uxy+"] ["+ualt+"] ["+utrk+"] ["+ugs+"] ["+uvs+"] ["+utrk+"] ["+ugs+"]";
 		}
 		s1 += " time alerter";
 		s2 += " [s] [none]";
 		s1 += " s_EW_std s_NS_std s_EN_std sz_std v_EW_std v_NS_std v_EN_std vz_std";
 		s2 += " ["+uxy+"] ["+uxy+"] ["+uxy+"] ["+ualt+"] ["+ugs+"] ["+ugs+"] ["+ugs+"] ["+uvs+"]";
 		return s1+"\n"+s2+"\n";
+	}
+
+	public String formattedHeader(String utrk, String uxy, String ualt, String ugs, String uvs) {
+		return formattedHeader(isLatLon(),utrk, uxy, ualt, ugs, uvs);
 	}
 
 	public String formattedTrafficState(String utrk, String uxy, String ualt, String ugs, String uvs, double time) {
@@ -328,7 +339,10 @@ public class TrafficState {
 		} else {
 			s += ", "+pos_.vect3().toStringNP(uxy,uxy,ualt);
 		}
-		s += ", "+avel_.toStringNP(utrk,ugs,uvs)+", "+f.FmPrecision(time);
+		s += ", "+gvel_.toStringNP(utrk,ugs,uvs);
+		s += ", "+f.FmPrecision(avel_.compassAngle(utrk));
+		s += ", "+f.FmPrecision(avel_.groundSpeed(ugs));
+		s += ", "+f.FmPrecision(time);
 		s += ", "+alerter_;
 		s += ", "+f.FmPrecision(sum_.get_s_EW_std(uxy));
 		s += ", "+f.FmPrecision(sum_.get_s_NS_std(uxy));
@@ -351,9 +365,12 @@ public class TrafficState {
 	}
 
 	public String formattedTraffic(List<TrafficState> traffic,
-			String utrk, String uxy, String ualt, String ugs, String uvs, double time) {
+			String utrk, String uxy, String ualt, String ugs, String uvs, double time,
+			boolean header) {
 		String s="";
-		s += formattedHeader(utrk,uxy,ualt,ugs,uvs);
+		if (header) {
+			s += formattedHeader(utrk,uxy,ualt,ugs,uvs);
+		}
 		s += formattedTrafficState(utrk,uxy,ualt,ugs,uvs,time);
 		s += formattedTrafficList(traffic,utrk,uxy,ualt,ugs,uvs,time);
 		return s;
@@ -361,7 +378,8 @@ public class TrafficState {
 
 	public String toPVS() {
 		return "(# id:= \"" + id_ + "\", s:= "+get_s().toPVS()+
-				", v:= "+get_v().toPVS()+", alerter:= "+alerter_+
+				", v:= "+get_v().toPVS()+
+				", alerter:= "+alerter_+
 				", unc := (# s_EW_std:= "+f.FmPrecision(sum_.get_s_EW_std())+
 				", s_NS_std:= "+f.FmPrecision(sum_.get_s_NS_std())+
 				", s_EN_std:= "+f.FmPrecision(sum_.get_s_EN_std())+

@@ -1,9 +1,9 @@
 all:
-	@echo "make mold | diff"
+	@echo "make mold | diff | java | cpp"
 
 gold:
 	cd ../Java;make mold
-	rsync -avz Java/ gold/
+	rsync --exclude '.*' -avz Java/ gold/
 
 moldj:
 	@cd ../Java;make mold > /dev/null 2> /dev/null
@@ -20,5 +20,9 @@ diffcpp:
 mold: moldj moldcpp
 
 diff: diffj diffcpp
+
+java: moldj diffj
+
+cpp: moldcpp diffcpp
 
 .PHONY: gold mold

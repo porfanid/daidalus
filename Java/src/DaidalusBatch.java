@@ -21,21 +21,21 @@ public class DaidalusBatch extends DaidalusProcessor {
 	static int format = STANDARD; 
 	static PrintWriter out = new PrintWriter(System.out);
 	static String output = "";
-	static double prj_t = 0;
 
 	static void printHelpMsg() {
 		System.err.println("Usage:");
-		System.err.println("  DaidalusBatch [flags] files");
-		System.err.println("  flags include:");
+		System.err.println("  DaidalusBatch [<options>] files\n");
+		System.err.println("Valid <options>:");
 		System.err.println("  --help\n\tPrint this message");
 		System.err.println("  --config <configuration-file> | no_sum | nom_a | nom_b | cd3d | tcasii\n\tLoad <configuration-file>");
 		System.err.println("  --out <file>\n\tOutput information to <file>");
 		System.err.println("  --verbose\n\tPrint extra information");
 		System.err.println("  --raw\n\tPrint raw information");
 		System.err.println("  --pvs\n\tProduce PVS output format");
-		System.err.println("  --project t\n\tLinearly project all aircraft t seconds for computing bands and alerting");
-		System.err.println("  --<var>=<val>\n\t<key> is any configuration variable and val is its value (including units, if any), e.g., --lookahead_time=5[min]");
+		System.err.println("  --<key>=<val>\n\t<key> is any configuration variable and val is its value (including units, if any), e.g., --lookahead_time=\"5[min]\"");
 		System.err.println("  --precision <n>\n\tOutput decimal precision");
+		System.err.println("  --instantaneous\n\tOverride configuration to do instantaneous bands");
+		System.err.println("  --nohystereis\n\tOverride configuation to disable hysteresis");
 		System.err.println(getHelpString());
 		System.exit(0);
 	}
@@ -47,6 +47,8 @@ public class DaidalusBatch extends DaidalusProcessor {
 		String options = "";
 		ParameterData params = new ParameterData();
 		int precision = 6;
+		boolean do_inst = false;
+		boolean no_hyst = false;
 		for (a=0;a < args.length && args[a].startsWith("-"); ++a) {
 			options += args[a]+" ";
 			if (walker.processOptions(args,a)) {
@@ -65,14 +67,16 @@ public class DaidalusBatch extends DaidalusProcessor {
 				raw = true;
 			} else if (args[a].equals("--pvs") || args[a].equals("-pvs")) {
 				format = PVS;
-			} else if (args[a].startsWith("--proj") || args[a].startsWith("-proj")) {
-				++a;
-				prj_t = Double.parseDouble(args[a]);
-				options += args[a]+" ";
 			} else if (args[a].startsWith("--prec") || args[a].startsWith("-prec")) {
 				++a;
 				precision = Integer.parseInt(args[a]);
 				options +=args[a]+" ";
+			} else if (args[a].startsWith("--inst") || args[a].startsWith("-inst")) {
+				// Use the given configuration, but do instantaneous bands
+				do_inst = true;
+			} else if (args[a].startsWith("--nohys") || args[a].startsWith("-nohys")) {
+				// Use the given configuration, but disable hysteresis
+				no_hyst = true;
 			} else if (args[a].startsWith("-") && args[a].contains("=")) {
 				String keyval = args[a].substring(args[a].lastIndexOf('-')+1);
 				params.set(keyval);
@@ -93,9 +97,7 @@ public class DaidalusBatch extends DaidalusProcessor {
 			System.out.println("ERROR: "+e);
 		}   
 		DaidalusParameters.setDefaultOutputPrecision(precision);
-
 		Daidalus daa = new Daidalus();
-
 		if (config.equals("")) {
 			// Configure alerters as in DO_365B Phase I, Phase II, and Non-Cooperative, with SUM
 			daa.set_DO_365B();
@@ -123,7 +125,12 @@ public class DaidalusBatch extends DaidalusProcessor {
 		if (params.size() > 0) {
 			daa.setParameterData(params);
 		}
-
+		if (do_inst) {
+			daa.setInstantaneousBands();
+		}
+		if (no_hyst) {
+			daa.disableHysteresis();
+		}
 		switch (format) {
 		case STANDARD:
 			if (verbose) {

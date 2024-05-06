@@ -40,68 +40,60 @@ SeparatedInput::SeparatedInputException::SeparatedInputException(
 }
 
 SeparatedInput::SeparatedInput() :
-						error("SeparatedInput") {
-	header = false;
-	bunits = false;
-	first_bunits = false;
-	caseSensitive = true;
-	parameters = ParameterData();
-	patternStr = Constants::wsPatternBase;
-	reader = 0;
-	linenum = 0;
-	fixed_width = false;
-	quoteCharDefined = false;
-	quoteCharacter = '"'; // not needed, just to eliminate warnings
-	preambleImage = "";
-}
+						error("SeparatedInput"),
+						reader(0),
+						header(false),
+						bunits(false),
+						first_bunits(false),
+						caseSensitive(true),
+						linenum(0),
+						patternStr(Constants::wsPatternBase),
+						fixed_width(false),
+						quoteCharacter('"'), // not needed, just to eliminate warnings
+						quoteCharDefined(false),
+						parameters(ParameterData()),
+						preambleImage("") {}
 
 // fs must already be opened!!!
 SeparatedInput::SeparatedInput(std::istream* ins) :
-						error("SeparatedInput") {
-	reader = ins;
-	header = false;
-	bunits = false;
-	first_bunits = false;
-	caseSensitive = true;
+						error("SeparatedInput"), 
+						reader(ins),
+						header(false),
+						bunits(false),
+						first_bunits(false),
+						caseSensitive(true),
+						linenum(0),
+						patternStr(Constants::wsPatternBase),
+						fixed_width(false),
+						quoteCharacter('"'), // not needed, just to eliminate warnings
+						quoteCharDefined(false),
+						parameters(ParameterData()),
+						preambleImage("") {
 	header_str.reserve(10); // note: reserve() is appropriate because we exclusively use push_back to populate the vectors
 	units_str.reserve(10);
 	units_factor.reserve(10);
 	line_str.reserve(10);
-	linenum = 0;
-	patternStr = Constants::wsPatternBase;
-	fixed_width = false;
-	parameters = ParameterData();
-	quoteCharDefined = false;
-	quoteCharacter = '"'; // not needed, just to eliminate warnings
-	preambleImage = "";
-
 }
 
 // This should never be used, it should exit
 SeparatedInput::SeparatedInput(const SeparatedInput& x) :
-						error("SeparatedInputError") {
-	error = x.error;
-	reader = x.reader;
-	header = x.header;
-	bunits = x.bunits;
-	first_bunits = x.first_bunits;
-	caseSensitive = x.caseSensitive;
-	header_str = x.header_str;
-	units_str = x.units_str;
-	units_factor = x.units_factor;
-	line_str = x.line_str;
-	linenum = x.linenum;
-	patternStr = x.patternStr;
-	parameters = x.parameters;
-	fixed_width = x.fixed_width;
-	quoteCharDefined = x.quoteCharDefined;
-	quoteCharacter = x.quoteCharacter;
-	preambleImage = x.preambleImage;
-
-
-	//    std::cout << "SeparatedInput copy constructor failure" << std::endl;
-	//    exit(1);
-}
+						error(x.error),
+						reader(x.reader),
+						header(x.header),
+						bunits(x.bunits),
+						first_bunits(x.first_bunits),
+						caseSensitive(x.caseSensitive),
+						linenum(x.linenum),
+						patternStr(x.patternStr),
+						fixed_width(x.fixed_width),
+						quoteCharacter(x.quoteCharacter),
+						quoteCharDefined(x.quoteCharDefined),
+						parameters(x.parameters),
+						preambleImage(x.preambleImage),
+						header_str(x.header_str),
+						units_str(x.units_str),
+						units_factor(x.units_factor),
+						line_str(x.line_str) {}
 
 // This should never be used, it should exit
 SeparatedInput& SeparatedInput::operator=(const SeparatedInput& x) {
@@ -133,7 +125,7 @@ void SeparatedInput::setColumnDelimiters(const std::string& delim) {
 	patternStr = delim;
 }
 
-std::string SeparatedInput::getColumnDelimiters() const {
+const std::string& SeparatedInput::getColumnDelimiters() const {
 	return patternStr;
 }
 
@@ -301,7 +293,7 @@ double SeparatedInput::getColumn(int i, double defaultValue, bool verbose) const
 	try {
 		rtn = Units::from(getUnitFactor(i), Util::parse_double(line_str[i]));
 	}
-	catch (std::runtime_error e) {
+	catch (std::runtime_error const& e) {
 		if (verbose) error.addWarning("could not parse double (" + Fm0(i) + "), line " + Fm0(linenum) + ": " + line_str[i]);
 		rtn = defaultValue;  // arbitrary value
 	}
@@ -320,11 +312,6 @@ double SeparatedInput::getColumn(int i, const std::string& default_unit) const {
 
 	return getColumn(i, 0.0, true);
 }
-
-
-
-
-
 
 bool SeparatedInput::readLine() {
 	//char* linestr = new char[maxLineSize];
@@ -345,7 +332,7 @@ bool SeparatedInput::readLine() {
 			// Remove comments from line
 			size_t comment_num = str.find('#');
 			if (comment_num != string::npos) {   //if (comment_num >= 0) {
-				str = str.substr(0,comment_num);
+				str.resize(comment_num);
 			}
 			trim(str);
 			// Skip empty lines
@@ -366,7 +353,7 @@ bool SeparatedInput::readLine() {
 					bunits = process_units(str);
 					first_bunits = true;
 				}
-				catch (SeparatedInputException e) {
+				catch (SeparatedInputException const& e) {
 					// use default units
 					bunits = false;
 					first_bunits = true;
@@ -380,7 +367,7 @@ bool SeparatedInput::readLine() {
 			str.clear();
 		}  //while
 	}
-	catch (std::runtime_error e) {
+	catch (std::runtime_error const& e) {
 		error.addError(
 				"*** An IO error occurred at line " + Fm0(linenum)
 				+ "The error was:" + e.what());
@@ -425,7 +412,7 @@ int SeparatedInput::lineNumber() const {
 	return linenum;
 }
 
-bool SeparatedInput::process_preamble(string str) {
+bool SeparatedInput::process_preamble(const string& str) {
 	vector<string> fields = split(str, "=");   // C++ version of split doesn't need the "-2" parameter that java needs.
 
 	// parameter keys are lower case only
@@ -522,10 +509,10 @@ void SeparatedInput::process_line(const string& str) {
 			idx = idx + width_int[i];
 		}
 	} else {
-		std::string str2 = str;
 		if (quoteCharDefined) {
 			fields = processQuotes(str);
 		} else {
+			std::string str2(str);
 			fields = split_regex(str2, patternStr);
 		}
 	}

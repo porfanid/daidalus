@@ -19,13 +19,11 @@
 #include <cmath>
 #include <float.h>
 
-
 namespace larcfm {
-
 
 bool VectFuns::LoS(const Vect3& so, const Vect3& si, double D, double H) {
 	Vect3 s = so.Sub(si);
-	return s.x*s.x + s.y*s.y < D*D && std::abs(s.z) < H;
+	return s.x()*s.x() + s.y()*s.y() < D*D && std::abs(s.z()) < H;
 }
 
 bool VectFuns::rightOfLine(const Vect2& so, const Vect2& vo, const Vect2& si) {
@@ -72,7 +70,6 @@ Velocity VectFuns::interpolateVelocity(const Velocity& v1, const Velocity& v2, d
         return Velocity::mkTrkGsVs(newtrk,newgs,newvs);
 }
 
-
 // This appears to use the right-hand rule to determine it returns the inside or outside angle
 double VectFuns::angle_between(const Vect2& v1, const Vect2& v2) {
 	Vect2 VV1 = v1.Scal(1.0/v1.norm());
@@ -88,8 +85,6 @@ double VectFuns::angle_between(const Vect2& a, const Vect2& b, const Vect2& c) {
 	return Util::acos_safe(A.dot(B)/d);
 }
 
-
-
 bool VectFuns::divergentHorizGt(const Vect2& s, const Vect2& vo, const Vect2& vi, double minRelSpeed) {
 	Vect2 v = vo.Sub(vi);
 	bool rtn = s.dot(v) > 0 && v.norm() > minRelSpeed;
@@ -104,16 +99,16 @@ bool VectFuns::divergent(const Vect2& so, const Vect2& vo, const Vect2& si, cons
 	  return so.Sub(si).dot(vo.Sub(vi)) > 0;
 }
 
-bool VectFuns::divergent(const Vect3& so, const Velocity& vo, const Vect3& si, const Velocity& vi) {
+bool VectFuns::divergent(const Vect3& so, const Vect3& vo, const Vect3& si, const Vect3& vi) {
 	  return so.Sub(si).dot(vo.Sub(vi)) > 0;
 }
 
-double VectFuns::rateOfClosureHorizontal(const Vect3& so, const Velocity& vo, const Vect3& si, const Velocity& vi) {
+double VectFuns::rateOfClosureHorizontal(const Vect3& so, const Vect3& vo, const Vect3& si, const Vect3& vi) {
 	return -so.Sub(si).vect2().Hat().dot(vo.Sub(vi).vect2());
 }
 
-double VectFuns::rateOfClosureVertical(const Vect3& so, const Velocity& vo, const Vect3& si, const Velocity& vi) {
-	return Util::sign(si.z-so.z)*(vo.z-vi.z);
+double VectFuns::rateOfClosureVertical(const Vect3& so, const Vect3& vo, const Vect3& si, const Vect3& vi) {
+	return Util::sign(si.z()-so.z())*(vo.z()-vi.z());
 }
 
 // time of closest approach
@@ -148,7 +143,7 @@ double VectFuns::distAtTau(const Vect3& s, const Vect3& vo, const Vect3& vi, boo
  * @return Pair (2-dimensional point of intersection with 3D projection, relative time of intersection, relative to the so3)
  * If the lines are parallel, this returns the pair (0,NaN).
  */
-std::pair<Vect3,double> VectFuns::intersection(const Vect3& so3, const Velocity& vo3, const Vect3& si3, const Velocity& vi3) {
+std::pair<Vect3,double> VectFuns::intersection(const Vect3& so3, const Vect3& vo3, const Vect3& si3, const Vect3& vi3) {
 	Vect2 so = so3.vect2();
 	Vect2 vo = vo3.vect2();
 	Vect2 si = si3.vect2();
@@ -161,9 +156,9 @@ std::pair<Vect3,double> VectFuns::intersection(const Vect3& so3, const Velocity&
 	double tt = ds.det(vi)/vo.det(vi);
 	//f.pln(" $$$ intersection: tt = "+tt);
 	Vect3 intersec = so3.Add(vo3.Scal(tt));
-	double nZ = intersec.z;
-	double maxZ = Util::max(so3.z,si3.z);
-	double minZ = Util::min(so3.z,si3.z);
+	double nZ = intersec.z();
+	double maxZ = Util::max(so3.z(),si3.z());
+	double minZ = Util::min(so3.z(),si3.z());
 	if (nZ > maxZ) nZ = maxZ;
 	if (nZ < minZ) nZ = minZ;
 	return std::pair<Vect3,double>(intersec.mkZ(nZ),tt);
@@ -186,18 +181,18 @@ double VectFuns::distanceH(const Vect3& soA, const Vect3& soB) {
 }
 
 std::pair<Vect3,double> VectFuns::intersectionAvgZ(const Vect3& so1, const Vect3& so2, double dto, const Vect3& si1, const Vect3& si2) {
-	Velocity vo3 = Velocity::genVel(so1, so2, dto);
-	Velocity vi3 = Velocity::genVel(si1, si2, dto);      // its ok to use any time here,  all times are relative to so
+	Vect3 vo3 = Velocity::genVel(so1, so2, dto).vect3();
+	Vect3 vi3 = Velocity::genVel(si1, si2, dto).vect3();      // its ok to use any time here,  all times are relative to so
 	std::pair<Vect3,double> iP = intersection(so1,vo3,si1,vi3);
 	Vect3 interSec = iP.first;
 			double do1 = distanceH(so1,interSec);
 			double do2 = distanceH(so2,interSec);
-			double alt_o = so1.z;
-			if (do2 < do1) alt_o = so2.z;
+			double alt_o = so1.z();
+			if (do2 < do1) alt_o = so2.z();
 			double di1 = distanceH(si1,interSec);
 			double di2 = distanceH(si2,interSec);
-			double alt_i = si1.z;
-			if (di2 < di1) alt_i = si2.z;
+			double alt_i = si1.z();
+			if (di2 < di1) alt_i = si2.z();
 			double nZ = (alt_o + alt_i)/2.0;
 	        return std::pair<Vect3,double>(interSec.mkZ(nZ),iP.second);
 }
@@ -207,7 +202,6 @@ std::pair<Vect2,double> VectFuns::intersection2D(const Vect2& so1, const Vect2& 
 	Vect2 vi = si2.Sub(si1).Scal(1/dto);      // its ok to use any time here,  all times are relative to so
 	return intersection2D(so1,vo,si1,vi);
 }
-
 
 std::pair<Vect2,double> VectFuns::intersectSegments(const Vect2& so, const Vect2& so2, const Vect2& si, const Vect2& si2) {
 	Vect2 vo = so2.Sub(so);
@@ -228,7 +222,6 @@ Vect3 VectFuns::closestPoint3(const Vect3& a, const Vect3& b, const Vect3& so) {
 	return ab.Scal(so.Sub(a).dot(ab)/ab.dot(ab)).Add(a);
 }
 
-
 Vect3 VectFuns::closestPoint(const Vect3& a, const Vect3& b, const Vect3& so) {
 	if (a.almostEquals(b)) return Vect3::INVALID();
 	Vect2 c = closestPoint(a.vect2(), b.vect2(), so.vect2());
@@ -241,7 +234,6 @@ Vect3 VectFuns::closestPoint(const Vect3& a, const Vect3& b, const Vect3& so) {
 		f = -f;
 	}
 	return a.AddScal(f, v);
-
 
 //	Vect3 v = a.Sub(b).PerpL().Hat2D(); // perpendicular vector to line
 //	Vect3 s2 = so.AddScal(100, v);
@@ -260,7 +252,6 @@ Vect2 VectFuns::closestPoint(const Vect2& a, const Vect2& b, const Vect2& so) {
 //	Vect2 cp = intersection(so,s2,100,a,b).first;
 //	return cp;
 }
-
 
 Vect3 VectFuns::closestPointOnSegment(const Vect3& a, const Vect3& b, const Vect3& so) {
 	Vect3 i = closestPoint(a,b,so);
@@ -320,8 +311,6 @@ std::pair<Vect3,double> VectFuns::closestPointOnSegment3_extended(const Vect3& a
 	}
 }
 
-
-
 /**
  * Computes 2D intersection point of two lines, but also finds z component (projected by time from line 1)
  * @param s0 starting point of line 1
@@ -346,7 +335,6 @@ double  VectFuns::timeOfIntersection(const Vect3& so3, const Velocity& vo3, cons
 	return tt;
 }
 
-
 /**
  * Returns true if x is "behind" so , that is, x is within the region behind the perpendicular line to vo through so.
  */
@@ -368,26 +356,13 @@ int VectFuns::passingDirection(const Vect3& so, const Velocity& vo, const Vect3&
 //fpln("toi="+toi);
 //fpln("int = "+	intersection(so,vo,si,vi));
 	if (ISNAN(toi) || toi < 0 || tii < 0) return 0;
-	Vect3 so3 = so.linear(vo, toi);
-	Vect3 si3 = si.linear(vi, toi);
+	Vect3 so3 = so.linear(vo.vect3(), toi);
+	Vect3 si3 = si.linear(vi.vect3(), toi);
 //fpln("so3="+so3);
 //fpln("si3="+si3);
 	if (behind(so3.vect2(), si3.vect2(), vi.vect2())) return -1;
 	return 1;
 }
-
-
-//	static int dirForBehind(Vect2 so, Vect2 vo, Vect2 si, Vect2 vi) {
-//		if (divergent(so,vo,si,vi)) return 0;
-//		double sdetvi = so.Sub(si).det(vi);
-//		double toi = 0.0;
-//		if (sdetvi != 0.0) toi = -vo.det(vi)/sdetvi;
-//		Vect2 nso = so.AddScal(toi,vo);
-//		Vect2 nsi = si.AddScal(toi,vi);
-//		int ahead = Util::sign(nso.Sub(nsi).dot(vi)); // Are we ahead of intruder at crossing pt
-//		int onRight = Util::sign(nsi.Sub(nso).det(vo)); // Are we ahead of intruder at crossing pt
-//		return ahead*onRight;
-//	}
 
 int VectFuns::dirForBehind(const Vect2& so, const Vect2& vo, const Vect2& si, const Vect2& vi) {
 	if (divergent(so,vo,si,vi)) return 0;
@@ -397,23 +372,5 @@ int VectFuns::dirForBehind(const Vect2& so, const Vect2& vo, const Vect2& si, co
 int VectFuns::dirForBehind(const Vect3& so, const Velocity& vo, const Vect3& si, const Velocity& vi) {
      return dirForBehind(so.vect2(),vo.vect2(),si.vect2(),vi.vect2());
 }
-
-Vect3 VectFuns::parse(const std::string& s) {
-	std::vector<std::string> fields = split(s, Constants::wsPatternParens);
-	while (fields.size() > 0 && equals(fields[0], "")) {
-		fields.erase(fields.begin());
-	}
-	if (fields.size() == 3) {
-		return Vect3::make(Util::parse_double(fields[0]), Util::parse_double(fields[1]), Util::parse_double(fields[2]));
-	}
-	else if (fields.size() == 6) {
-		return Vect3::make(Util::parse_double(fields[0]), Units::clean(fields[1]),
-			Util::parse_double(fields[2]), Units::clean(fields[3]),
-			Util::parse_double(fields[4]), Units::clean(fields[5]));
-	}
-	return Vect3::INVALID();
-}
-
-
 
 }
