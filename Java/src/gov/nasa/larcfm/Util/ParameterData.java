@@ -33,7 +33,7 @@ public class ParameterData {
 	private final String listPatternStr; // may be user-settable at some point
 	private boolean preserveUnits;
 	private boolean unitCompatibility;
-	private Map<String, ParameterEntry> parameters;
+	private final Map<String, ParameterEntry> parameters;
 
 
 	/** A database of parameters.  The database is initially empty.  A parameter can be a string, 
@@ -1269,5 +1269,8 @@ public class ParameterData {
 		return pd;
 	}
 
-	
+
+    public boolean isEmpty() {
+		return parameters.isEmpty();
+    }
 }
